@@ -4,7 +4,16 @@ import glob
 # Constants
 REPO = os.environ.get('GITHUB_REPOSITORY', 'owner/repo')
 BRANCH = 'main'
-LINKS_PLACEHOLDER = '{{ LINKS_PLACEHOLDER }}'
+
+INDEX_PLACEHOLDER_LINKS = '{{ LINKS_PLACEHOLDER }}'
+
+FOOTER_PLACEHOLDER_REPO_URL = '{{ REPO_URL }}'
+FOOTER_PLACEHOLDER_SOURCE_URL = '{{ SOURCE_URL }}'
+FOOTER_PLACEHOLDER_VIEW_TEXT = '{{ VIEW_TEXT }}'
+
+LINK_PLACEHOLDER_FILENAME = '{{ FILENAME }}'
+LINK_PLACEHOLDER_TITLE = '{{ TITLE }}'
+
 INDEX_TEMPLATE_PATH = 'scripts/index_template.html'
 FOOTER_TEMPLATE_PATH = 'scripts/footer_template.html'
 LINK_TEMPLATE_PATH = 'scripts/link_template.html'
@@ -32,9 +41,9 @@ def get_footer_html(filename, is_index=False):
         print(f"Error: {FOOTER_TEMPLATE_PATH} not found.")
         return ""
 
-    return footer_html.replace("{{ REPO_URL }}", repo_url)\
-                      .replace("{{ SOURCE_URL }}", source_url)\
-                      .replace("{{ VIEW_TEXT }}", view_text)
+    return footer_html.replace(FOOTER_PLACEHOLDER_REPO_URL, repo_url)\
+                      .replace(FOOTER_PLACEHOLDER_SOURCE_URL, source_url)\
+                      .replace(FOOTER_PLACEHOLDER_VIEW_TEXT, view_text)
 
 def main():
     # 1. List HTML files in the root
@@ -55,8 +64,8 @@ def main():
         # Prettify title
         title = f.replace("-", " ").replace("_", " ").replace(".html", "").title()
 
-        links_html += link_template.replace("{{ FILENAME }}", f)\
-                                   .replace("{{ TITLE }}", title)
+        links_html += link_template.replace(LINK_PLACEHOLDER_FILENAME, f)\
+                                   .replace(LINK_PLACEHOLDER_TITLE, title)
 
     # 4. Read Index Template
     try:
@@ -67,7 +76,7 @@ def main():
         return
 
     # 5. Write index.html
-    index_content = template_content.replace(LINKS_PLACEHOLDER, links_html)
+    index_content = template_content.replace(INDEX_PLACEHOLDER_LINKS, links_html)
     with open(OUTPUT_FILE, "w") as f:
         f.write(index_content)
 
