@@ -144,7 +144,9 @@ def main():
         if overview and 'last_updated' in overview:
             last_updated = f'<span class="text-gray-400">Updated: {overview["last_updated"]}</span>'
 
-        links_html += link_template.replace(LINK_PLACEHOLDER_FILENAME, f_name)\
+        # Link directly to the file in the root of dist
+        link_filename = os.path.basename(f_name)
+        links_html += link_template.replace(LINK_PLACEHOLDER_FILENAME, link_filename)\
                                    .replace(LINK_PLACEHOLDER_TITLE, title)\
                                    .replace(LINK_PLACEHOLDER_DESCRIPTION, description)\
                                    .replace(LINK_PLACEHOLDER_META, meta_html)\
@@ -178,8 +180,10 @@ def main():
         else:
             new_content = content + footer
         
-        output_path = os.path.join(DIST_DIR, f_name)
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        # Output directly to dist root
+        output_filename = os.path.basename(f_name)
+        output_path = os.path.join(DIST_DIR, output_filename)
+        # os.makedirs(os.path.dirname(output_path), exist_ok=True) # Not needed for root
             
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(new_content)
