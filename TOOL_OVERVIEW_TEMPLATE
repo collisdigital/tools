@@ -1,0 +1,14 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "Tool Name",
+  "description": "A concise description of what this tool does and its primary use case.",
+  "functionality": {
+    "key_feature_1": "Description of the first key feature.",
+    "key_feature_2": "Description of the second key feature."
+  },
+  "dependencies": ["List", "of", "dependencies"],
+  "last_updated": "YYYY-MM-DD"
+}
+TOOL_OVERVIEW_END
+-->

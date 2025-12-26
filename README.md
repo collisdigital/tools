@@ -5,7 +5,7 @@ Inspired by https://github.com/simonw/tools
 
 ## Project Structure
 - `scripts/`: Contains Python scripts and HTML templates for site generation.
-  - `generate_index.py`: The main script that crawls the root directory for HTML files, generates an `index.html` list, and injects a consistent footer into all files.
+  - `generate_index.py`: The main script that crawls the `tools/` directory for HTML files, generates an `index.html` list, and injects a consistent footer into all files.
   - `index_template.html`, `footer_template.html`, `link_template.html`: Templates used by the generator script.
 - `dist/`: (Auto-generated) Contains the final, processed HTML files ready for deployment. This folder is ignored by git.
 - `.github/workflows/deploy.yml`: GitHub Actions workflow that automatically builds the site and deploys it to GitHub Pages on every push to `main`.
