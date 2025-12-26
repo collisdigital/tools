@@ -1,0 +1,610 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "Google Jules Dashboard",
+  "description": "A standalone HTML interface for the Google Jules API (v1alpha).",
+  "functionality": {
+    "session_management": "Lists all user sessions with status indicators (Active, Completed, Failed).",
+    "activity_tracking": "Fetches and displays activity logs for sessions. Implements client-side pagination traversal to ensure the 'Most Recent 10' activities are displayed, even for long histories.",
+    "rendering": "Specialized rendering for diverse activity types including User/Agent messages, Plans, Bash outputs, and Git patches.",
+    "authentication": "Client-side API key management using localStorage."
+  },
+  "dependencies": ["Tailwind CSS (CDN)", "Google Fonts"],
+  "last_updated": "2025-12-26"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Jules Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Roboto for a Google-like feel -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f8f9fa; /* Google grey background */
+        }
+        pre, code {
+            font-family: 'Roboto Mono', monospace;
+        }
+        .session-card {
+            transition: all 0.2s ease-in-out;
+        }
+        .session-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        /* Custom scrollbar for activity lists */
+        .activity-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .activity-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .activity-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .activity-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3b82f6;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="text-gray-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm z-10 flex-none">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <!-- Simple Logo Icon -->
+                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">J</div>
+                <h1 class="text-xl font-medium text-gray-900 tracking-tight">Jules Dashboard</h1>
+            </div>
+            <button onclick="toggleSettings()" class="text-gray-500 hover:text-blue-600 transition-colors focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 relative">
+        <div class="max-w-5xl mx-auto space-y-6">
+            
+            <!-- Welcome / Empty State -->
+            <div id="welcomeState" class="hidden text-center py-20">
+                <div class="bg-blue-50 text-blue-700 p-4 rounded-full inline-block mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-semibold text-gray-900 mb-2">Welcome to Jules</h2>
+                <p class="text-gray-600 mb-6 max-w-md mx-auto">Configure your API key in settings to start viewing your active coding sessions and agent activities.</p>
+                <button onclick="toggleSettings()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md shadow-sm transition-colors">
+                    Configure API Key
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div id="mainLoader" class="hidden flex justify-center py-20">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+            </div>
+
+            <!-- Error Banner -->
+            <div id="errorBanner" class="hidden bg-red-50 border-l-4 border-red-500 p-4 mb-4 rounded-r shadow-sm">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-red-700" id="errorText">Something went wrong.</p>
+                        <button onclick="retryFetch()" class="text-sm font-medium text-red-700 hover:text-red-600 underline mt-1">Retry</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Session List Container -->
+            <div id="sessionList" class="grid grid-cols-1 gap-4">
+                <!-- Sessions will be injected here -->
+            </div>
+            
+            <!-- Load More -->
+            <div id="loadMoreContainer" class="hidden text-center pt-4">
+                <button onclick="fetchSessions(nextPageToken)" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-6 rounded-md shadow-sm transition-colors text-sm">
+                    Load More Sessions
+                </button>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity opacity-0">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden transform transition-all scale-95">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="text-lg font-medium text-gray-900">Settings</h3>
+                <button onclick="toggleSettings()" class="text-gray-400 hover:text-gray-500">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <label for="apiKeyInput" class="block text-sm font-medium text-gray-700 mb-1">Google Jules API Key</label>
+                    <input type="password" id="apiKeyInput" placeholder="Enter your API Key" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <p class="mt-2 text-xs text-gray-500">
+                        Your key is stored locally in your browser. Get your key from the <a href="https://console.cloud.google.com" target="_blank" class="text-blue-600 hover:underline">Google Cloud Console</a> or Jules Settings.
+                    </p>
+                </div>
+                <div class="flex justify-end pt-2">
+                    <button onclick="saveSettings()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md shadow-sm transition-colors text-sm">
+                        Save & Connect
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // --- State Management ---
+        const CONFIG = {
+            baseUrl: 'https://jules.googleapis.com/v1alpha', // Based on publicly available info
+            localStorageKey: 'jules_api_key'
+        };
+
+        let state = {
+            sessions: [],
+            nextPageToken: null,
+            expandedSessionId: null
+        };
+
+        // --- DOM Elements ---
+        const els = {
+            settingsModal: document.getElementById('settingsModal'),
+            apiKeyInput: document.getElementById('apiKeyInput'),
+            sessionList: document.getElementById('sessionList'),
+            welcomeState: document.getElementById('welcomeState'),
+            mainLoader: document.getElementById('mainLoader'),
+            errorBanner: document.getElementById('errorBanner'),
+            errorText: document.getElementById('errorText'),
+            loadMoreContainer: document.getElementById('loadMoreContainer')
+        };
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const storedKey = localStorage.getItem(CONFIG.localStorageKey);
+            if (storedKey) {
+                els.apiKeyInput.value = storedKey;
+                fetchSessions();
+            } else {
+                els.welcomeState.classList.remove('hidden');
+            }
+        });
+
+        // --- Settings Logic ---
+        function toggleSettings() {
+            const modal = els.settingsModal;
+            const isHidden = modal.classList.contains('hidden');
+            
+            if (isHidden) {
+                modal.classList.remove('hidden');
+                // Small timeout to allow display:block to apply before opacity transition
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.querySelector('div').classList.remove('scale-95');
+                    modal.querySelector('div').classList.add('scale-100');
+                }, 10);
+            } else {
+                modal.classList.add('opacity-0');
+                modal.querySelector('div').classList.remove('scale-100');
+                modal.querySelector('div').classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 200);
+            }
+        }
+
+        function saveSettings() {
+            const key = els.apiKeyInput.value.trim();
+            if (!key) {
+                alert('Please enter a valid API key.');
+                return;
+            }
+            localStorage.setItem(CONFIG.localStorageKey, key);
+            toggleSettings();
+            
+            // Reset state and fetch
+            state.sessions = [];
+            state.nextPageToken = null;
+            els.sessionList.innerHTML = '';
+            fetchSessions();
+        }
+
+        // --- API Logic ---
+        function getAuthHeaders() {
+            const key = localStorage.getItem(CONFIG.localStorageKey);
+            return {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': key
+            };
+        }
+
+        async function fetchSessions(pageToken = null) {
+            hideError();
+            
+            // UI State updates
+            if (!pageToken) {
+                els.mainLoader.classList.remove('hidden');
+                els.welcomeState.classList.add('hidden');
+                els.sessionList.innerHTML = ''; 
+            } else {
+                // Show small loader on load more button? handled by async await pattern mostly
+            }
+
+            try {
+                const url = new URL(`${CONFIG.baseUrl}/sessions`);
+                url.searchParams.append('pageSize', '20');
+                if (pageToken) url.searchParams.append('pageToken', pageToken);
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                // Update State
+                if (data.sessions) {
+                    state.sessions = pageToken ? [...state.sessions, ...data.sessions] : data.sessions;
+                }
+                state.nextPageToken = data.nextPageToken || null;
+
+                renderSessions(data.sessions || [], pageToken !== null); // Append if paginating
+                
+            } catch (err) {
+                console.error(err);
+                showError(err.message);
+            } finally {
+                els.mainLoader.classList.add('hidden');
+            }
+        }
+
+        async function fetchActivities(sessionName, containerId) {
+            const container = document.getElementById(containerId);
+            const contentDiv = container.querySelector('.activities-content');
+            const loader = container.querySelector('.loader');
+            
+            // Reset UI
+            contentDiv.innerHTML = '';
+            contentDiv.classList.add('hidden');
+            loader.classList.remove('hidden');
+
+            try {
+                let pageToken = null;
+                // Buffer to hold the trailing activities across pages
+                let tailBuffer = [];
+                const MAX_DISPLAY = 10;
+
+                // Loop through all pages to find the true end of the list
+                do {
+                    const url = new URL(`${CONFIG.baseUrl}/${sessionName}/activities`);
+                    
+                    // Fetch max page size to minimize requests while traversing
+                    url.searchParams.append('pageSize', '100');
+                    if (pageToken) url.searchParams.append('pageToken', pageToken);
+
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: getAuthHeaders()
+                    });
+
+                    if (!response.ok) throw new Error('Failed to load activities');
+
+                    const data = await response.json();
+                    const pageActivities = data.activities || [];
+                    
+                    if (pageActivities.length > 0) {
+                        // Append new batch
+                        tailBuffer = tailBuffer.concat(pageActivities);
+                        // Optimization: Only keep the necessary tail to avoid memory bloat
+                        // We strictly want the last 10 of the *entire* sequence.
+                        if (tailBuffer.length > MAX_DISPLAY) {
+                            tailBuffer = tailBuffer.slice(-MAX_DISPLAY);
+                        }
+                    }
+
+                    pageToken = data.nextPageToken;
+                } while (pageToken);
+
+                renderActivities(tailBuffer, contentDiv);
+
+            } catch (err) {
+                contentDiv.innerHTML = `<p class="text-red-500 text-sm py-2">Error loading activities: ${err.message}</p>`;
+            } finally {
+                loader.classList.add('hidden');
+                contentDiv.classList.remove('hidden');
+            }
+        }
+
+        function retryFetch() {
+            fetchSessions();
+        }
+
+        // --- Rendering Logic ---
+        function renderSessions(sessions, append) {
+            if (!sessions || sessions.length === 0) {
+                if (!append) els.sessionList.innerHTML = '<div class="text-center text-gray-500 py-10">No sessions found.</div>';
+                return;
+            }
+
+            const html = sessions.map(session => {
+                const sessionId = session.name.split('/').pop();
+                const containerId = `activities-${sessionId}`;
+                const createdDate = new Date().toLocaleDateString(); // Actual API might have createTime
+                const statusColor = getStatusColor(session.state);
+
+                // Use a default title if none exists, or prompt excerpt
+                const title = session.title || session.prompt || 'Untitled Session';
+                const prompt = session.prompt || 'No description provided';
+
+                return `
+                    <div class="session-card bg-white rounded-lg border border-gray-200 overflow-hidden">
+                        <div class="p-5">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="text-lg font-semibold text-gray-900 truncate pr-4" title="${title}">${title}</h3>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">
+                                    ${session.state || 'ACTIVE'}
+                                </span>
+                            </div>
+                            <p class="text-gray-600 text-sm mb-4 line-clamp-2">${prompt}</p>
+                            
+                            <div class="flex items-center justify-between mt-4 border-t border-gray-100 pt-3">
+                                <span class="text-xs text-gray-400 font-mono">${sessionId}</span>
+                                <button onclick="toggleActivities('${session.name}', '${containerId}', this)" 
+                                    class="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors focus:outline-none group">
+                                    <span>Most Recent 10</span>
+                                    <svg class="ml-1 h-4 w-4 transform transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Activities Panel (Hidden by default) -->
+                        <div id="${containerId}" class="hidden bg-gray-50 border-t border-gray-200">
+                            <div class="p-4">
+                                <div class="flex items-center justify-center py-4 loader hidden"></div>
+                                <div class="activities-content space-y-4 max-h-[600px] overflow-y-auto activity-scroll pr-2">
+                                    <!-- Activities injected here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (append) {
+                els.sessionList.insertAdjacentHTML('beforeend', html);
+            } else {
+                els.sessionList.innerHTML = html;
+            }
+
+            // Handle Load More Button
+            if (state.nextPageToken) {
+                els.loadMoreContainer.classList.remove('hidden');
+            } else {
+                els.loadMoreContainer.classList.add('hidden');
+            }
+        }
+
+        // --- Activity Rendering Implementation ---
+        
+        function renderActivities(activities, container) {
+            if (!activities || activities.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-sm text-center italic py-2">No activities recorded.</p>';
+                return;
+            }
+
+            container.innerHTML = activities.map(activity => {
+                const originator = activity.originator || 'system';
+                const isUser = originator.toLowerCase() === 'user';
+                const timeStr = activity.createTime ? new Date(activity.createTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+
+                // Determine content based on union fields
+                let contentHtml = '';
+                let typeLabel = '';
+                
+                if (activity.userMessaged) {
+                    typeLabel = 'User Message';
+                    contentHtml = `<p class="whitespace-pre-wrap">${escapeHtml(activity.userMessaged.userMessage)}</p>`;
+                } else if (activity.agentMessaged) {
+                    typeLabel = 'Agent Message';
+                    contentHtml = `<p class="whitespace-pre-wrap">${escapeHtml(activity.agentMessaged.agentMessage)}</p>`;
+                } else if (activity.planGenerated) {
+                    typeLabel = 'Plan Generated';
+                    contentHtml = renderPlan(activity.planGenerated.plan);
+                } else if (activity.planApproved) {
+                    typeLabel = 'Plan Approved';
+                    contentHtml = `<div class="flex items-center text-green-700 bg-green-50 p-2 rounded border border-green-200">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        Plan Approved: <span class="font-mono ml-1 text-xs">${activity.planApproved.planId}</span>
+                    </div>`;
+                } else if (activity.progressUpdated) {
+                    typeLabel = 'Progress Update';
+                    contentHtml = `
+                        <div class="bg-blue-50 border-l-4 border-blue-400 p-3">
+                            <p class="font-medium text-blue-900">${escapeHtml(activity.progressUpdated.title)}</p>
+                            <p class="text-sm text-blue-700 mt-1">${escapeHtml(activity.progressUpdated.description)}</p>
+                        </div>`;
+                } else if (activity.sessionCompleted) {
+                    typeLabel = 'Session Completed';
+                    contentHtml = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Session Ended</span>`;
+                } else if (activity.sessionFailed) {
+                    typeLabel = 'Session Failed';
+                    contentHtml = `<div class="text-red-600 font-medium">Failed: ${escapeHtml(activity.sessionFailed.reason)}</div>`;
+                } else {
+                    // Fallback for unknown types
+                    typeLabel = 'Activity';
+                    contentHtml = `<pre class="text-xs text-gray-500 overflow-x-auto">${JSON.stringify(activity, null, 2)}</pre>`;
+                }
+
+                // Render Artifacts if present
+                if (activity.artifacts && activity.artifacts.length > 0) {
+                    contentHtml += `<div class="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                        <p class="text-xs font-bold text-gray-400 uppercase">Artifacts</p>
+                        ${activity.artifacts.map(renderArtifact).join('')}
+                    </div>`;
+                }
+
+                // Layout
+                return `
+                    <div class="flex gap-3 group">
+                        <div class="flex-none flex flex-col items-center">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center ${isUser ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'} mt-1">
+                                <span class="text-xs font-bold">${isUser ? 'U' : 'A'}</span>
+                            </div>
+                            <div class="w-0.5 bg-gray-100 flex-1 h-full my-1 group-last:hidden"></div>
+                        </div>
+                        <div class="pb-6 flex-1 min-w-0">
+                            <div class="flex items-baseline justify-between mb-1">
+                                <span class="text-xs font-bold ${isUser ? 'text-blue-600' : 'text-purple-600'} uppercase tracking-wide">${typeLabel}</span>
+                                <span class="text-xs text-gray-400 font-mono">${timeStr}</span>
+                            </div>
+                            <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm text-sm text-gray-700">
+                                ${contentHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderPlan(plan) {
+            if (!plan || !plan.steps) return '<span class="text-gray-500 italic">Empty Plan</span>';
+            return `
+                <div class="space-y-2">
+                    ${plan.steps.map(step => `
+                        <div class="flex gap-2">
+                            <div class="flex-none w-5 h-5 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-mono">${step.index + 1}</div>
+                            <div>
+                                <p class="font-medium text-gray-900">${escapeHtml(step.title)}</p>
+                                <p class="text-gray-500 text-xs">${escapeHtml(step.description)}</p>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderArtifact(artifact) {
+            if (artifact.bashOutput) {
+                const bash = artifact.bashOutput;
+                const isErr = bash.exitCode !== 0;
+                return `
+                    <div class="bg-gray-900 rounded-md overflow-hidden text-xs font-mono">
+                        <div class="bg-gray-800 px-3 py-1 text-gray-400 flex justify-between border-b border-gray-700">
+                            <span>$ ${escapeHtml(bash.command)}</span>
+                            <span class="${isErr ? 'text-red-400' : 'text-green-400'}">Exit: ${bash.exitCode}</span>
+                        </div>
+                        <div class="p-3 text-gray-300 whitespace-pre-wrap overflow-x-auto">${escapeHtml(bash.output)}</div>
+                    </div>
+                `;
+            } else if (artifact.changeSet) {
+                const cs = artifact.changeSet;
+                const patch = cs.gitPatch?.unidiffPatch || '';
+                return `
+                    <div class="border border-yellow-200 bg-yellow-50 rounded-md p-2">
+                        <div class="flex items-center text-yellow-800 mb-2">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            <span class="font-medium">Changes to ${escapeHtml(cs.source)}</span>
+                        </div>
+                        ${patch ? `<pre class="text-xs bg-white border border-gray-200 p-2 rounded overflow-x-auto max-h-40">${escapeHtml(patch)}</pre>` : ''}
+                    </div>
+                `;
+            } else if (artifact.media) {
+                return `<div class="text-xs text-gray-500">[Media: ${artifact.media.mimeType}]</div>`;
+            }
+            return `<div class="text-xs text-gray-400">[Unknown Artifact]</div>`;
+        }
+
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function toggleActivities(sessionName, containerId, btn) {
+            const container = document.getElementById(containerId);
+            const isHidden = container.classList.contains('hidden');
+            const icon = btn.querySelector('svg');
+
+            // Close others if you want accordion style (optional, currently independent)
+            // document.querySelectorAll('[id^="activities-"]').forEach(el => el.classList.add('hidden'));
+
+            if (isHidden) {
+                container.classList.remove('hidden');
+                icon.classList.add('rotate-180');
+                fetchActivities(sessionName, containerId);
+            } else {
+                container.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+            }
+        }
+
+        function getStatusColor(state) {
+            // Colors based on common session states
+            switch (state) {
+                case 'RUNNING':
+                case 'ACTIVE': return 'bg-green-100 text-green-800';
+                case 'COMPLETED': return 'bg-blue-100 text-blue-800';
+                case 'FAILED': return 'bg-red-100 text-red-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        function showError(msg) {
+            els.errorText.textContent = msg;
+            els.errorBanner.classList.remove('hidden');
+        }
+
+        function hideError() {
+            els.errorBanner.classList.add('hidden');
+        }
+
+    </script>
+</body>
+</html>
