@@ -174,7 +174,10 @@ def main():
         content = remove_existing_footer(content)
         footer = get_footer_html(f_name, is_index=False)
         
-        if "</body>" in content:
+        if "</main>" in content:
+            parts = content.rsplit("</main>", 1)
+            new_content = parts[0] + footer + "\n</main>" + parts[1]
+        elif "</body>" in content:
             parts = content.rsplit("</body>", 1)
             new_content = parts[0] + footer + "\n</body>" + parts[1]
         else:
@@ -191,7 +194,10 @@ def main():
     # Process index.html
     index_content = remove_existing_footer(index_content)
     footer = get_footer_html(OUTPUT_FILE, is_index=True)
-    if "</body>" in index_content:
+    if "</div>\n</body>" in index_content:
+        parts = index_content.rsplit("</div>\n</body>", 1)
+        new_content = parts[0] + footer + "\n</div>\n</body>" + parts[1]
+    elif "</body>" in index_content:
         parts = index_content.rsplit("</body>", 1)
         new_content = parts[0] + footer + "\n</body>" + parts[1]
     else:
