@@ -12,6 +12,14 @@ Inspired by https://github.com/simonw/tools
 
 ## Local Development
 
+### Using Just (Recommended)
+This project uses [just](https://github.com/casey/just) as a command runner for convenience.
+
+- `just build`: Generates the `dist/` folder.
+- `just serve`: Builds and serves the site from `dist/`.
+- `just dev`: Serves the `tools/` directory directly (useful for hot-reload debugging of individual tools).
+- `just clean`: Removes the `dist/` folder.
+
 ### Generating the Site
 To generate the `dist/` folder locally, run:
 ```bash
