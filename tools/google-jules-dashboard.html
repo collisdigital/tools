@@ -301,66 +301,161 @@ TOOL_OVERVIEW_END
             }
         }
 
-        async function fetchActivities(sessionName, containerId) {
-            console.log(`Loading activities for ${sessionName}...`);
+        async function fetchActivities(sessionName, containerId, mode = 'recent', isLoadMore = false) {
+            console.log(`Loading activities for ${sessionName} (Mode: ${mode}, LoadMore: ${isLoadMore})...`);
+            
+            // Init state if needed
+            if (!window.activityStates) window.activityStates = {};
+            if (!window.activityStates[sessionName]) {
+                window.activityStates[sessionName] = { nextPageToken: null, mode: 'recent' };
+            }
+            const activityState = window.activityStates[sessionName];
+
             const container = document.getElementById(containerId);
             const contentDiv = container.querySelector('.activities-content');
             const loader = container.querySelector('.loader-container');
+            const loadMoreBtn = container.querySelector('.load-more-activities');
+            const loadTrigger = container.querySelector('.load-trigger');
             
-            // Reset UI
-            contentDiv.innerHTML = '';
-            contentDiv.classList.add('hidden');
-            loader.classList.remove('hidden');
+            // UI Setup
+            if (!isLoadMore) {
+                // Initial load: clear and show loader
+                contentDiv.innerHTML = '';
+                contentDiv.classList.add('hidden');
+                if (loadTrigger) loadTrigger.classList.add('hidden');
+                loader.classList.remove('hidden');
+                loadMoreBtn.classList.add('hidden');
+            } else {
+                // Loading more: disable button temporarily
+                const btn = loadMoreBtn.querySelector('button');
+                if(btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+            }
 
             try {
-                let pageToken = null;
-                let totalCount = 0;
-                // Buffer to hold the trailing activities across pages
-                let tailBuffer = [];
-                const MAX_DISPLAY = 10;
+                let itemsToRender = [];
+                
+                if (mode === 'recent') {
+                    // --- Existing "Recent 10" Logic ---
+                    let pageToken = null;
+                    let tailBuffer = [];
+                    const MAX_DISPLAY = 10;
+                    let totalCount = 0;
 
-                // Loop through all pages to find the true end of the list
-                do {
-                    const url = new URL(`${CONFIG.baseUrl}/${sessionName}/activities`);
-                    
-                    // Fetch max page size to minimize requests while traversing
-                    url.searchParams.append('pageSize', '100');
-                    if (pageToken) url.searchParams.append('pageToken', pageToken);
+                    do {
+                        const url = new URL(`${CONFIG.baseUrl}/${sessionName}/activities`);
+                        url.searchParams.append('pageSize', '100'); // Large page size for traversal
+                        if (pageToken) url.searchParams.append('pageToken', pageToken);
 
-                    const response = await fetch(url, {
-                        method: 'GET',
-                        headers: getAuthHeaders()
-                    });
-
-                    if (!response.ok) throw new Error('Failed to load activities');
-
-                    const data = await response.json();
-                    const pageActivities = data.activities || [];
-                    totalCount += pageActivities.length;
-                    console.log(`- Page fetched: ${pageActivities.length} activities. Running total: ${totalCount}`);
-                    
-                    if (pageActivities.length > 0) {
-                        // Append new batch
-                        tailBuffer = tailBuffer.concat(pageActivities);
-                        // Optimization: Only keep the necessary tail to avoid memory bloat
-                        // We strictly want the last 10 of the *entire* sequence.
-                        if (tailBuffer.length > MAX_DISPLAY) {
-                            tailBuffer = tailBuffer.slice(-MAX_DISPLAY);
+                        const response = await fetch(url, { method: 'GET', headers: getAuthHeaders() });
+                        if (!response.ok) throw new Error('Failed to load activities');
+                        const data = await response.json();
+                        
+                        const pageActivities = data.activities || [];
+                        totalCount += pageActivities.length;
+                        
+                        if (pageActivities.length > 0) {
+                            tailBuffer = tailBuffer.concat(pageActivities);
+                            if (tailBuffer.length > MAX_DISPLAY) {
+                                tailBuffer = tailBuffer.slice(-MAX_DISPLAY);
+                            }
                         }
+                        pageToken = data.nextPageToken;
+                    } while (pageToken);
+                    
+                    itemsToRender = tailBuffer;
+                    console.log(`Recent Mode: Found ${totalCount} total. Displaying last ${tailBuffer.length}.`);
+                    
+                } else {
+                    // --- "All" Logic (Forward Pagination) ---
+                    const url = new URL(`${CONFIG.baseUrl}/${sessionName}/activities`);
+                    url.searchParams.append('pageSize', '15');
+                    
+                    // Use stored token if loading more, otherwise start fresh (null)
+                    // If isLoadMore is false, we are resetting, so use null. 
+                    const tokenToUse = isLoadMore ? activityState.nextPageToken : null;
+                    if (tokenToUse) url.searchParams.append('pageToken', tokenToUse);
+
+                    const response = await fetch(url, { method: 'GET', headers: getAuthHeaders() });
+                    if (!response.ok) throw new Error('Failed to load activities');
+                    const data = await response.json();
+                    
+                    itemsToRender = data.activities || [];
+                    activityState.nextPageToken = data.nextPageToken || null;
+                    
+                    console.log(`All Mode: Fetched ${itemsToRender.length} items. Next page? ${!!activityState.nextPageToken}`);
+                }
+
+                // Render
+                const html = generateActivitiesHtml(itemsToRender); 
+                
+                if (isLoadMore) {
+                    const prevCount = contentDiv.children.length;
+                    contentDiv.insertAdjacentHTML('beforeend', html);
+                    const firstNew = contentDiv.children[prevCount];
+                    if (firstNew) {
+                        // Small timeout to ensure DOM update
+                        setTimeout(() => firstNew.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
                     }
+                } else {
+                    contentDiv.innerHTML = itemsToRender.length > 0 ? html : '<p class="text-gray-500 text-sm text-center italic py-2">No activities recorded.</p>';
+                }
+                
+                contentDiv.classList.remove('hidden');
 
-                    pageToken = data.nextPageToken;
-                } while (pageToken);
-
-                console.log(`Finished loading activities. Found ${totalCount} total. Displaying last ${tailBuffer.length}.`);
-                renderActivities(tailBuffer, contentDiv);
+                // Handle Load More visibility (Only for 'all' mode)
+                if (mode === 'all' && activityState.nextPageToken) {
+                    loadMoreBtn.classList.remove('hidden');
+                    const btn = loadMoreBtn.querySelector('button');
+                    if(btn) { btn.disabled = false; btn.textContent = 'Load next 15...'; }
+                } else {
+                    loadMoreBtn.classList.add('hidden');
+                }
 
             } catch (err) {
-                contentDiv.innerHTML = `<p class="text-red-500 text-sm py-2">Error loading activities: ${err.message}</p>`;
+                console.error(err);
+                if (!isLoadMore) {
+                    contentDiv.innerHTML = `<p class="text-red-500 text-sm py-2">Error loading activities: ${err.message}</p>`;
+                    contentDiv.classList.remove('hidden');
+                } else {
+                   alert(`Error loading more: ${err.message}`);
+                   const btn = loadMoreBtn.querySelector('button');
+                   if(btn) { btn.disabled = false; btn.textContent = 'Load next 15...'; }
+                }
             } finally {
-                loader.classList.add('hidden');
-                contentDiv.classList.remove('hidden');
+                if (!isLoadMore) loader.classList.add('hidden');
             }
+        }
+
+        // New Helper Functions
+        function setActivityMode(sessionName, containerId, mode) {
+            // Update UI buttons
+            const container = document.getElementById(containerId);
+            const btns = container.querySelectorAll('.mode-btn');
+            btns.forEach(btn => {
+                if (btn.dataset.mode === mode) {
+                    btn.className = 'mode-btn px-3 py-1 text-xs rounded-md font-medium bg-blue-50 text-blue-600 shadow-sm transition-all';
+                } else {
+                    btn.className = 'mode-btn px-3 py-1 text-xs rounded-md font-medium text-gray-500 hover:text-gray-700 transition-all';
+                }
+            });
+
+            // Update State
+            if (!window.activityStates) window.activityStates = {};
+            if (!window.activityStates[sessionName]) window.activityStates[sessionName] = {};
+            window.activityStates[sessionName].mode = mode;
+            window.activityStates[sessionName].nextPageToken = null; // Reset pagination
+
+            // Fetch
+            fetchActivities(sessionName, containerId, mode, false);
+        }
+
+        function loadMoreActivities(sessionName, containerId) {
+            fetchActivities(sessionName, containerId, 'all', true);
+        }
+
+        function triggerInitialLoad(sessionName, containerId) {
+             const mode = window.activityStates?.[sessionName]?.mode || 'recent';
+             fetchActivities(sessionName, containerId, mode, false);
         }
 
         function retryFetch() {
@@ -399,7 +494,7 @@ TOOL_OVERVIEW_END
                                 <span class="text-xs text-gray-400 font-mono">${sessionId}</span>
                                 <button onclick="toggleActivities('${session.name}', '${containerId}', this)" 
                                     class="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors focus:outline-none group">
-                                    <span>Most Recent 10</span>
+                                    <span>View Activities</span>
                                     <svg class="ml-1 h-4 w-4 transform transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                     </svg>
@@ -410,9 +505,28 @@ TOOL_OVERVIEW_END
                         <!-- Activities Panel (Hidden by default) -->
                         <div id="${containerId}" class="hidden bg-gray-50 border-t border-gray-200">
                             <div class="p-4">
+                                <!-- Toolbar -->
+                                <div class="flex justify-between items-center mb-3 px-1">
+                                    <div class="text-xs font-medium text-gray-500">Activity Log</div>
+                                    <div class="flex bg-white rounded-lg border border-gray-200 p-0.5">
+                                        <button data-mode="recent" onclick="setActivityMode('${session.name}', '${containerId}', 'recent')" class="mode-btn px-3 py-1 text-xs rounded-md font-medium bg-blue-50 text-blue-600 shadow-sm transition-all">Recent 10</button>
+                                        <button data-mode="all" onclick="setActivityMode('${session.name}', '${containerId}', 'all')" class="mode-btn px-3 py-1 text-xs rounded-md font-medium text-gray-500 hover:text-gray-700 transition-all">All</button>
+                                    </div>
+                                </div>
+
+                                <div class="load-trigger text-center py-6">
+                                    <p class="text-gray-400 text-xs mb-3">Content hidden to save data</p>
+                                    <button onclick="triggerInitialLoad('${session.name}', '${containerId}')" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-1.5 px-4 rounded shadow-sm transition-colors text-xs">
+                                        Load Activities
+                                    </button>
+                                </div>
+
                                 <div class="loader-container hidden flex items-center justify-center py-4"><div class="loader"></div></div>
                                 <div class="activities-content space-y-4 max-h-[600px] overflow-y-auto activity-scroll pr-2">
                                     <!-- Activities injected here -->
+                                </div>
+                                <div class="load-more-activities hidden text-center mt-3 border-t border-gray-200 pt-3">
+                                    <button onclick="loadMoreActivities('${session.name}', '${containerId}')" class="text-xs bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium py-1.5 px-4 rounded shadow-sm transition-colors">Load next 15...</button>
                                 </div>
                             </div>
                         </div>
@@ -436,13 +550,8 @@ TOOL_OVERVIEW_END
 
         // --- Activity Rendering Implementation ---
         
-        function renderActivities(activities, container) {
-            if (!activities || activities.length === 0) {
-                container.innerHTML = '<p class="text-gray-500 text-sm text-center italic py-2">No activities recorded.</p>';
-                return;
-            }
-
-            container.innerHTML = activities.map(activity => {
+        function generateActivitiesHtml(activities) {
+            return activities.map(activity => {
                 const originator = activity.originator || 'system';
                 const isUser = originator.toLowerCase() === 'user';
                 const timeStr = activity.createTime ? new Date(activity.createTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
@@ -522,9 +631,9 @@ TOOL_OVERVIEW_END
             if (!plan || !plan.steps) return '<span class="text-gray-500 italic">Empty Plan</span>';
             return `
                 <div class="space-y-2">
-                    ${plan.steps.map(step => `
+                    ${plan.steps.map((step, idx) => `
                         <div class="flex gap-2">
-                            <div class="flex-none w-5 h-5 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-mono">${step.index + 1}</div>
+                            <div class="flex-none w-5 h-5 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-mono">${idx + 1}</div>
                             <div>
                                 <p class="font-medium text-gray-900">${escapeHtml(step.title)}</p>
                                 <p class="text-gray-500 text-xs">${escapeHtml(step.description)}</p>
@@ -551,12 +660,22 @@ TOOL_OVERVIEW_END
             } else if (artifact.changeSet) {
                 const cs = artifact.changeSet;
                 const patch = cs.gitPatch?.unidiffPatch || '';
+                
+                // Store patch for download
+                const patchId = 'patch_' + Math.random().toString(36).substr(2, 9);
+                window.patchStorage[patchId] = patch;
+
                 return `
                     <details class="border border-yellow-200 bg-yellow-50 rounded-md overflow-hidden group">
                         <summary class="flex items-center text-yellow-800 p-2 cursor-pointer hover:bg-yellow-100 transition-colors list-none outline-none">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                            <span class="font-medium text-xs">Changes to ${escapeHtml(cs.source)}</span>
-                            <svg class="w-3 h-3 ml-auto opacity-50 transform transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            <svg class="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            <span class="font-medium text-xs truncate flex-1 mr-2">Changes to ${escapeHtml(cs.source)}</span>
+                            
+                            <button onclick="downloadDiff(event, '${escapeHtml(cs.source)}', '${patchId}')" class="p-1 hover:bg-yellow-200 rounded text-yellow-700 mr-2" title="Download Diff">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            </button>
+                            
+                            <svg class="w-3 h-3 opacity-50 transform transition-transform group-open:rotate-180 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </summary>
                         <div class="p-2 pt-0 border-t border-yellow-100">
                             ${patch ? `<pre class="text-xs bg-white border border-gray-200 p-2 rounded overflow-x-auto max-h-80 mt-2">${escapeHtml(patch)}</pre>` : '<p class="text-xs italic text-yellow-600 mt-2">No diff available</p>'}
@@ -590,7 +709,6 @@ TOOL_OVERVIEW_END
             if (isHidden) {
                 container.classList.remove('hidden');
                 icon.classList.add('rotate-180');
-                fetchActivities(sessionName, containerId);
             } else {
                 container.classList.add('hidden');
                 icon.classList.remove('rotate-180');
@@ -615,6 +733,37 @@ TOOL_OVERVIEW_END
 
         function hideError() {
             els.errorBanner.classList.add('hidden');
+        }
+
+        // --- Diff Download Logic ---
+        window.patchStorage = {};
+        
+        function downloadDiff(event, filename, patchId) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const content = window.patchStorage[patchId];
+            if (!content) {
+                alert('Error: Patch content not found.');
+                return;
+            }
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            // Ensure filename ends in .diff or .patch
+            let safeName = filename.split('/').pop() || 'changes';
+            if (!safeName.endsWith('.diff') && !safeName.endsWith('.patch')) {
+                safeName += '.diff';
+            }
+            
+            a.href = url;
+            a.download = safeName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
 
     </script>
