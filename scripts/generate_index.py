@@ -6,7 +6,7 @@ import shutil
 import json
 
 # Constants
-REPO = os.environ.get('GITHUB_REPOSITORY', 'owner/repo')
+REPO = os.environ.get('GITHUB_REPOSITORY', 'collisdigital/tools')
 BRANCH = os.environ.get('GITHUB_REF_NAME', 'main')
 
 INDEX_PLACEHOLDER_LINKS = '{{ LINKS_PLACEHOLDER }}'
