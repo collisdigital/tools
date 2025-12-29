@@ -99,6 +99,64 @@ TOOL_OVERVIEW_END
             opacity: 1;
             transform: scale(1) rotate(10deg);
         }
+
+        /* Counter Styles */
+        .counter-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 50;
+            background: #fff;
+            border: 3px solid #000;
+            border-radius: 50%;
+            width: 100px;
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 5px 5px 0px rgba(0,0,0,0.8);
+            transform: rotate(-5deg);
+            transition: transform 0.1s;
+        }
+
+        .counter-label {
+            font-family: 'Comic Neue', cursive;
+            font-weight: 700;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            line-height: 1;
+        }
+
+        .counter-value {
+            font-family: 'Bangers', cursive;
+            font-size: 2.5rem;
+            line-height: 1;
+            color: #ef4444;
+        }
+
+        @keyframes pump {
+            0% { transform: scale(1) rotate(-5deg); }
+            50% { transform: scale(1.2) rotate(0deg); }
+            100% { transform: scale(1) rotate(-5deg); }
+        }
+
+        .pump-animation {
+            animation: pump 0.2s ease-out;
+        }
+
+        /* Mobile adjustment for counter to not block content */
+        @media (max-width: 640px) {
+            .counter-container {
+                width: 80px;
+                height: 80px;
+                bottom: 10px;
+                right: 10px;
+            }
+            .counter-value {
+                font-size: 2rem;
+            }
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center py-10 px-4 text-gray-900">
@@ -116,15 +174,24 @@ TOOL_OVERVIEW_END
         </p>
     </header>
 
-    <!-- Soundboard Grid -->
-    <main id="board" class="grid grid-cols-2 md:grid-cols-3 gap-8 max-w-4xl w-full">
-        <!-- JS Injects Here -->
+    <!-- Main Content Container -->
+    <main class="flex flex-col items-center w-full">
+        <!-- Soundboard Grid -->
+        <div id="board" class="grid grid-cols-2 md:grid-cols-3 gap-8 max-w-4xl w-full">
+            <!-- JS Injects Here -->
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-16 text-center font-bold text-gray-700 pb-10">
+            <p>Get the hell out of my office!</p>
+        </footer>
     </main>
 
-    <!-- Footer -->
-    <footer class="mt-16 text-center font-bold text-gray-700 pb-10">
-        <p>Get the hell out of my office!</p>
-    </footer>
+    <!-- Floating Counter -->
+    <div id="goddamn-counter" class="counter-container">
+        <span class="counter-label">Goddamns</span>
+        <span id="goddamn-count-value" class="counter-value">0</span>
+    </div>
 
     <script>
         // SVG generators for caricatures
@@ -245,6 +312,11 @@ TOOL_OVERVIEW_END
         const board = document.getElementById('board');
         const synth = window.speechSynthesis;
 
+        // Counter Logic
+        let goddamnCount = 0;
+        const counterElement = document.getElementById('goddamn-counter');
+        const counterValueElement = document.getElementById('goddamn-count-value');
+
         function createBoard() {
             characters.forEach(char => {
                 const card = document.createElement('div');
@@ -273,6 +345,14 @@ TOOL_OVERVIEW_END
             setTimeout(() => {
                 cardElement.classList.remove('playing');
             }, 500);
+
+            // Increment Counter
+            goddamnCount++;
+            counterValueElement.textContent = goddamnCount;
+
+            counterElement.classList.remove('pump-animation');
+            void counterElement.offsetWidth; // trigger reflow
+            counterElement.classList.add('pump-animation');
 
             // Audio Logic
             if (synth.speaking) {
@@ -306,5 +386,3 @@ TOOL_OVERVIEW_END
     </script>
 </body>
 </html>
-
-
