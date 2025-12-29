@@ -14,6 +14,7 @@ INDEX_PLACEHOLDER_LINKS = '{{ LINKS_PLACEHOLDER }}'
 FOOTER_PLACEHOLDER_REPO_URL = '{{ REPO_URL }}'
 FOOTER_PLACEHOLDER_SOURCE_URL = '{{ SOURCE_URL }}'
 FOOTER_PLACEHOLDER_VIEW_TEXT = '{{ VIEW_TEXT }}'
+FOOTER_PLACEHOLDER_INDEX_LINK = '{{ INDEX_LINK_PLACEHOLDER }}'
 
 LINK_PLACEHOLDER_FILENAME = '{{ FILENAME }}'
 LINK_PLACEHOLDER_TITLE = '{{ TITLE }}'
@@ -52,9 +53,22 @@ def get_footer_html(filename, is_index=False):
         print(f"Error: {FOOTER_TEMPLATE_PATH} not found.")
         sys.exit(1)
 
+    # Determine the "Index" link content
+    if is_index:
+        index_link_html = ""
+    else:
+        index_link_html = (
+            '\n            <span style="color: #d1d5db;">|</span>\n'
+            '            <a href="index.html" style="text-decoration: none; color: inherit; transition: color 0.2s;" '
+            'onmouseover="this.style.color=\'#2563eb\'" onmouseout="this.style.color=\'inherit\'">\n'
+            '                All Tools\n'
+            '            </a>'
+        )
+
     return footer_html.replace(FOOTER_PLACEHOLDER_REPO_URL, repo_url)\
                       .replace(FOOTER_PLACEHOLDER_SOURCE_URL, source_url)\
-                      .replace(FOOTER_PLACEHOLDER_VIEW_TEXT, view_text)
+                      .replace(FOOTER_PLACEHOLDER_VIEW_TEXT, view_text)\
+                      .replace(FOOTER_PLACEHOLDER_INDEX_LINK, index_link_html)
 
 def remove_existing_footer(content):
     """Removes the auto-generated footer from the content if it exists."""
