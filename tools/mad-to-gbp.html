@@ -91,10 +91,19 @@ TOOL_OVERVIEW_END
                         type="number" 
                         id="mad-input" 
                         value="100"
-                        class="w-full pl-24 pr-4 py-4 text-3xl font-semibold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-brand-500 focus:ring-0 focus:outline-none transition-all placeholder-slate-300"
+                        class="w-full pl-24 pr-12 py-4 text-3xl font-semibold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-brand-500 focus:ring-0 focus:outline-none transition-all placeholder-slate-300"
                         placeholder="0"
                         inputmode="decimal"
                     >
+                    <button
+                        id="clear-btn"
+                        class="absolute right-4 text-slate-400 hover:text-slate-600 focus:outline-none p-1 transition-colors"
+                        aria-label="Clear input"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
             </div>
 
@@ -145,6 +154,7 @@ TOOL_OVERVIEW_END
         const madInput = document.getElementById('mad-input');
         const gbpOutput = document.getElementById('gbp-output');
         const rateDisplay = document.getElementById('rate-display');
+        const clearBtn = document.getElementById('clear-btn');
 
         // Initialize display
         rateDisplay.textContent = EXCHANGE_RATE;
@@ -176,12 +186,35 @@ TOOL_OVERVIEW_END
             gbpOutput.textContent = formatCurrency(gbpValue);
         };
 
+        // Clear Button Logic
+        const toggleClearButton = () => {
+            if (madInput.value) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+        };
+
+        clearBtn.addEventListener('click', () => {
+            madInput.value = '';
+            convert();
+            toggleClearButton();
+            madInput.focus();
+        });
+
         // Event Listeners
-        madInput.addEventListener('input', convert);
-        madInput.addEventListener('keyup', convert);
+        madInput.addEventListener('input', () => {
+            convert();
+            toggleClearButton();
+        });
+        madInput.addEventListener('keyup', () => {
+            convert();
+            toggleClearButton();
+        });
 
         // Initial Run
         convert();
+        toggleClearButton();
     </script>
 </body>
 </html>
