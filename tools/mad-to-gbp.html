@@ -74,22 +74,22 @@ TOOL_OVERVIEW_END
         <!-- Header -->
         <div class="bg-slate-800 p-6 text-center">
             <h1 class="text-white text-2xl font-semibold tracking-tight">Currency Converter</h1>
-            <p class="text-slate-200 text-sm mt-1 opacity-90">Moroccan Dirham to British Pound</p>
+            <p id="header-desc" class="text-slate-200 text-sm mt-1 opacity-90">Moroccan Dirham to British Pound</p>
         </div>
 
         <!-- Converter Body -->
         <div class="p-8 space-y-8">
             
-            <!-- Input Section (MAD) -->
+            <!-- Input Section -->
             <div class="relative group">
                 <div class="relative flex items-center">
                     <div class="absolute left-4 flex items-center pointer-events-none">
-                        <img src="https://flagcdn.com/w40/ma.png" alt="Morocco Flag" class="w-6 h-4 rounded-sm shadow-sm opacity-80">
-                        <span class="ml-2 font-semibold text-slate-700">MAD</span>
+                        <img id="input-flag" src="https://flagcdn.com/w40/ma.png" alt="Morocco Flag" class="w-6 h-4 rounded-sm shadow-sm opacity-80">
+                        <span id="input-label" class="ml-2 font-semibold text-slate-700">MAD</span>
                     </div>
                     <input 
                         type="number" 
-                        id="mad-input" 
+                        id="amount-input"
                         value="100"
                         class="w-full pl-24 pr-12 py-4 text-3xl font-semibold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-brand-500 focus:ring-0 focus:outline-none transition-all placeholder-slate-300"
                         placeholder="0"
@@ -107,27 +107,31 @@ TOOL_OVERVIEW_END
                 </div>
             </div>
 
-            <!-- Divider / Icon -->
+            <!-- Divider / Swap Button -->
             <div class="relative flex items-center justify-center">
                 <div class="absolute inset-0 flex items-center">
                     <div class="w-full border-t border-slate-100"></div>
                 </div>
-                <div class="relative bg-white p-2 rounded-full border border-slate-100 shadow-sm text-slate-400">
+                <button
+                    id="swap-btn"
+                    class="relative bg-white p-2 rounded-full border border-slate-100 shadow-sm text-slate-400 hover:text-slate-600 hover:shadow-md cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+                    aria-label="Swap currencies"
+                >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                     </svg>
-                </div>
+                </button>
             </div>
 
-            <!-- Output Section (GBP) -->
+            <!-- Output Section -->
             <div class="relative">
                 <div class="relative flex items-center">
                     <div class="absolute left-4 flex items-center pointer-events-none">
-                        <img src="https://flagcdn.com/w40/gb.png" alt="UK Flag" class="w-6 h-4 rounded-sm shadow-sm opacity-80">
-                        <span class="ml-2 font-semibold text-slate-700">GBP</span>
+                        <img id="output-flag" src="https://flagcdn.com/w40/gb.png" alt="UK Flag" class="w-6 h-4 rounded-sm shadow-sm opacity-80">
+                        <span id="output-label" class="ml-2 font-semibold text-slate-700">GBP</span>
                     </div>
                     <div 
-                        id="gbp-output" 
+                        id="amount-output"
                         class="w-full pl-24 pr-4 py-4 text-3xl font-semibold text-brand-600 bg-brand-50 border-2 border-brand-100 rounded-xl flex items-center"
                     >
                         8.12
@@ -137,8 +141,8 @@ TOOL_OVERVIEW_END
 
             <!-- Rate Info -->
             <div class="text-center pt-2">
-                <p class="text-xs text-slate-400 bg-slate-50 inline-block px-3 py-1 rounded-full">
-                    Exchange Rate: 1 MAD ≈ <span id="rate-display">0.0812</span> GBP
+                <p id="rate-container" class="text-xs text-slate-400 bg-slate-50 inline-block px-3 py-1 rounded-full">
+                    Exchange Rate: 1 MAD ≈ <span class="font-semibold">0.0812</span> GBP
                 </p>
             </div>
         </div>
@@ -150,14 +154,21 @@ TOOL_OVERVIEW_END
         // In a production app, you would fetch this from an API.
         const EXCHANGE_RATE = 0.0812; 
 
-        // DOM Elements
-        const madInput = document.getElementById('mad-input');
-        const gbpOutput = document.getElementById('gbp-output');
-        const rateDisplay = document.getElementById('rate-display');
-        const clearBtn = document.getElementById('clear-btn');
+        // State
+        let isMadToGbp = true;
 
-        // Initialize display
-        rateDisplay.textContent = EXCHANGE_RATE;
+        // DOM Elements
+        const amountInput = document.getElementById('amount-input');
+        const amountOutput = document.getElementById('amount-output');
+        const rateContainer = document.getElementById('rate-container');
+        const clearBtn = document.getElementById('clear-btn');
+        const swapBtn = document.getElementById('swap-btn');
+
+        const headerDesc = document.getElementById('header-desc');
+        const inputFlag = document.getElementById('input-flag');
+        const inputLabel = document.getElementById('input-label');
+        const outputFlag = document.getElementById('output-flag');
+        const outputLabel = document.getElementById('output-label');
 
         // Formatting function for currency
         // We allow up to 2 decimal places, but don't force them if it's a whole number while typing
@@ -168,27 +179,80 @@ TOOL_OVERVIEW_END
             });
         };
 
+        // Update Interface (Labels, Flags, Rate)
+        const updateInterface = () => {
+            if (isMadToGbp) {
+                headerDesc.textContent = "Moroccan Dirham to British Pound";
+                inputFlag.src = "https://flagcdn.com/w40/ma.png";
+                inputFlag.alt = "Morocco Flag";
+                inputLabel.textContent = "MAD";
+                outputFlag.src = "https://flagcdn.com/w40/gb.png";
+                outputFlag.alt = "UK Flag";
+                outputLabel.textContent = "GBP";
+
+                rateContainer.innerHTML = `Exchange Rate: 1 MAD ≈ <span class="font-semibold">${EXCHANGE_RATE}</span> GBP`;
+            } else {
+                headerDesc.textContent = "British Pound to Moroccan Dirham";
+                inputFlag.src = "https://flagcdn.com/w40/gb.png";
+                inputFlag.alt = "UK Flag";
+                inputLabel.textContent = "GBP";
+                outputFlag.src = "https://flagcdn.com/w40/ma.png";
+                outputFlag.alt = "Morocco Flag";
+                outputLabel.textContent = "MAD";
+
+                const reverseRate = (1 / EXCHANGE_RATE).toFixed(4);
+                rateContainer.innerHTML = `Exchange Rate: 1 GBP ≈ <span class="font-semibold">${reverseRate}</span> MAD`;
+            }
+        };
+
         // Conversion Logic
         const convert = () => {
-            const madValue = parseFloat(madInput.value);
+            const val = parseFloat(amountInput.value);
             
-            if (isNaN(madValue) || madInput.value === '') {
-                gbpOutput.textContent = '0.00';
-                gbpOutput.classList.add('text-slate-400');
-                gbpOutput.classList.remove('text-brand-600');
+            if (isNaN(val) || amountInput.value === '') {
+                amountOutput.textContent = '0.00';
+                amountOutput.classList.add('text-slate-400');
+                amountOutput.classList.remove('text-brand-600');
                 return;
             }
 
-            gbpOutput.classList.remove('text-slate-400');
-            gbpOutput.classList.add('text-brand-600');
+            amountOutput.classList.remove('text-slate-400');
+            amountOutput.classList.add('text-brand-600');
 
-            const gbpValue = madValue * EXCHANGE_RATE;
-            gbpOutput.textContent = formatCurrency(gbpValue);
+            let resultValue;
+            if (isMadToGbp) {
+                resultValue = val * EXCHANGE_RATE;
+            } else {
+                resultValue = val * (1 / EXCHANGE_RATE);
+            }
+
+            amountOutput.textContent = formatCurrency(resultValue);
+        };
+
+        // Swap Logic
+        const swap = () => {
+            // Get current output numeric value
+            const currentOutputStr = amountOutput.textContent.replace(/,/g, '');
+            const currentOutputVal = parseFloat(currentOutputStr);
+
+            // Toggle state
+            isMadToGbp = !isMadToGbp;
+
+            // Update Input
+            if (!isNaN(currentOutputVal)) {
+                amountInput.value = currentOutputVal.toFixed(2);
+            } else {
+                amountInput.value = '';
+            }
+
+            updateInterface();
+            convert();
+            toggleClearButton();
         };
 
         // Clear Button Logic
         const toggleClearButton = () => {
-            if (madInput.value) {
+            if (amountInput.value) {
                 clearBtn.classList.remove('hidden');
             } else {
                 clearBtn.classList.add('hidden');
@@ -196,23 +260,26 @@ TOOL_OVERVIEW_END
         };
 
         clearBtn.addEventListener('click', () => {
-            madInput.value = '';
+            amountInput.value = '';
             convert();
             toggleClearButton();
-            madInput.focus();
+            amountInput.focus();
         });
 
+        swapBtn.addEventListener('click', swap);
+
         // Event Listeners
-        madInput.addEventListener('input', () => {
+        amountInput.addEventListener('input', () => {
             convert();
             toggleClearButton();
         });
-        madInput.addEventListener('keyup', () => {
+        amountInput.addEventListener('keyup', () => {
             convert();
             toggleClearButton();
         });
 
         // Initial Run
+        updateInterface();
         convert();
         toggleClearButton();
     </script>
