@@ -1,14 +1,16 @@
 <!--
 TOOL_OVERVIEW_START
 {
-  "name": "Comic Style SVG Generator",
-  "description": "A browser-based tool that converts images into comic-book style SVGs using OpenCV.js for edge detection and color smoothing.",
+  "name": "Vector Tool (Fine Control)",
+  "description": "Advanced vectorization tool with fine-grained resolution control and extended path simplification ranges for ultra-abstract outputs.",
   "functionality": {
-    "Image Transformation": "Applies adaptive thresholding and bilateral filtering to create bold outlines and simplified colors.",
-    "SVG Export": "Generates a downloadable and copiable SVG file containing the processed image with posterization filters."
+    "Vectorization": "Converts photos to SVG paths.",
+    "Extended Simplification": "New 0-10 range allowing for hyper-detailed or ultra-abstract low-poly results.",
+    "Fine-Grained Resolution": "Pixel-perfect input resizing control from 200px to 1200px.",
+    "Main Thread": "Runs synchronously for maximum reliability."
   },
-  "dependencies": ["Tailwind CSS", "OpenCV.js", "Highlight.js"],
-  "last_updated": "2025-12-29"
+  "dependencies": ["Tailwind CSS", "ImageTracer.js", "Highlight.js"],
+  "last_updated": "2025-12-30"
 }
 TOOL_OVERVIEW_END
 -->
@@ -17,13 +19,13 @@ TOOL_OVERVIEW_END
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comic Style Generator</title>
+    <title>Vector Tool</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     
-    <!-- Load OpenCV.js -->
-    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady()" type="text/javascript"></script>
+    <!-- Load ImageTracer.js -->
+    <script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.min.js"></script>
 
     <style>
         .code-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
@@ -33,7 +35,7 @@ TOOL_OVERVIEW_END
         .loader {
             border: 3px solid #f3f3f3;
             border-radius: 50%;
-            border-top: 3px solid #3b82f6;
+            border-top: 3px solid #9333ea;
             width: 20px;
             height: 20px;
             animation: spin 1s linear infinite;
@@ -52,7 +54,7 @@ TOOL_OVERVIEW_END
             height: 16px;
             width: 16px;
             border-radius: 50%;
-            background: #2563eb;
+            background: #9333ea;
             cursor: pointer;
             margin-top: -6px; 
         }
@@ -63,11 +65,9 @@ TOOL_OVERVIEW_END
             background: #e5e7eb;
             border-radius: 2px;
         }
-        /* Ensure SVG scales correctly inside its container */
         #svg-output svg {
             width: 100%;
             height: auto;
-            max-height: 100%;
         }
     </style>
 </head>
@@ -77,15 +77,12 @@ TOOL_OVERVIEW_END
     <header class="bg-white shadow-sm sticky top-0 z-20">
         <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
             <div class="flex items-center gap-2">
-                <div class="p-1.5 bg-blue-600 rounded text-white">
+                <div class="p-1.5 bg-purple-600 rounded text-white">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
                 </div>
-                <h1 class="text-lg font-bold text-gray-900">Comic Converter</h1>
+                <h1 class="text-lg font-bold text-gray-900">Vector Tool</h1>
             </div>
-            <div id="status-container" class="flex items-center gap-2 text-sm font-medium text-amber-600">
-                <div id="loader" class="loader"></div>
-                <span id="status-text">Loading OpenCV...</span>
-            </div>
+            <div class="text-xs font-mono text-gray-400">v5.0</div>
         </div>
     </header>
 
@@ -100,13 +97,13 @@ TOOL_OVERVIEW_END
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                     <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">1. Upload Photo</h2>
                     <div class="relative border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 transition-colors group" id="drop-zone">
-                        <input type="file" id="fileInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" disabled>
+                        <input type="file" id="fileInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                         <div class="flex flex-col items-center pointer-events-none">
-                            <svg class="w-8 h-8 text-gray-400 mb-2 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <svg class="w-8 h-8 text-gray-400 mb-2 group-hover:text-purple-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                             <span class="text-sm text-gray-600 font-medium">Click to upload</span>
                         </div>
                     </div>
-                    <!-- Source Preview: Updated to Contain instead of Cover -->
+                    <!-- Source Preview -->
                     <div id="source-preview-container" class="mt-4 hidden bg-gray-50 p-2 rounded-lg border border-gray-200">
                         <p class="text-xs text-gray-500 mb-2">Source Preview:</p>
                         <img id="source-preview-img" class="max-w-full max-h-60 h-auto object-contain mx-auto rounded">
@@ -115,57 +112,63 @@ TOOL_OVERVIEW_END
 
                 <!-- 2. Settings -->
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4">2. Tweak Style</h2>
+                    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4">2. Vector Settings</h2>
                     
                     <div class="space-y-6">
-                        <!-- Slider 1: Edge Detail -->
+                        <!-- Slider 1: Colors -->
                         <div>
                             <div class="flex justify-between text-sm mb-1">
-                                <label class="font-medium text-gray-700">Edge Thickness</label>
-                                <span id="val-edges" class="text-blue-600 font-mono">9</span>
+                                <label class="font-medium text-gray-700">Palette Size</label>
+                                <span id="val-colors" class="text-purple-600 font-mono">8</span>
                             </div>
-                            <input type="range" id="input-edges" min="3" max="19" step="2" value="9">
-                            <p class="text-xs text-gray-400 mt-1">Higher = fewer details, bolder lines</p>
+                            <input type="range" id="input-colors" min="2" max="16" step="1" value="8">
+                            <p class="text-xs text-gray-400 mt-1">Number of colors (More = bigger file)</p>
+                        </div>
+                        
+                        <!-- Slider 2: Path Simplification -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-gray-700">Path Simplification</label>
+                                <span id="val-simple" class="text-purple-600 font-mono">3</span>
+                            </div>
+                            <!-- Extended range 0-10 -->
+                            <input type="range" id="input-simple" min="0" max="10" step="1" value="3">
+                            <p class="text-xs text-gray-400 mt-1">0 = Exact, 10 = Ultra Abstract (Tiny File)</p>
                         </div>
 
-                        <!-- Slider 2: Color Smoothing -->
-                        <div>
+                         <!-- Slider 3: Resolution -->
+                         <div>
                             <div class="flex justify-between text-sm mb-1">
-                                <label class="font-medium text-gray-700">Color Smoothness</label>
-                                <span id="val-smooth" class="text-blue-600 font-mono">75</span>
+                                <label class="font-medium text-gray-700">Input Detail (Width)</label>
+                                <span id="val-res" class="text-purple-600 font-mono">600px</span>
                             </div>
-                            <input type="range" id="input-smooth" min="10" max="150" step="10" value="75">
-                            <p class="text-xs text-gray-400 mt-1">Higher = flatter, cartoon-like colors</p>
-                        </div>
-
-                        <!-- Slider 3: Color Levels -->
-                        <div>
-                            <div class="flex justify-between text-sm mb-1">
-                                <label class="font-medium text-gray-700">Color Palette Size</label>
-                                <span id="val-levels" class="text-blue-600 font-mono">6</span>
-                            </div>
-                            <input type="range" id="input-levels" min="2" max="12" step="1" value="6">
-                            <p class="text-xs text-gray-400 mt-1">Number of distinct colors in output</p>
+                            <!-- Fine grained 200-1200 -->
+                            <input type="range" id="input-res" min="200" max="1200" step="50" value="600">
+                            <p class="text-xs text-gray-400 mt-1">Processing resolution. Lower = Faster/Blockier.</p>
                         </div>
                     </div>
 
                     <!-- Convert Button -->
                     <div class="mt-6 pt-4 border-t border-gray-100">
-                        <button id="convert-btn" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2" disabled>
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-                            <span>Convert Image</span>
+                        <button id="convert-btn" class="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2" disabled>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            <span>Vectorize Image</span>
                         </button>
                     </div>
                 </div>
             </div>
 
             <!-- Right Column: Output (8 cols) -->
-            <div class="lg:col-span-8 space-y-6">
+            <div class="lg:col-span-8 space-y-6 flex flex-col">
                 
-                <!-- Preview: Updated to be flexible height and contain SVG -->
+                <!-- Preview -->
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col h-auto">
                     <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide">3. Result</h2>
+                        <div class="flex items-center gap-4">
+                            <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide">3. Result</h2>
+                            <span id="freeze-warning" class="hidden text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded font-medium animate-pulse">Processing (Browser may freeze)...</span>
+                            <span id="file-size" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded hidden">0 KB</span>
+                        </div>
                         <button id="download-btn" class="hidden text-sm px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition flex items-center gap-2 font-medium">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                             Download SVG
@@ -174,8 +177,8 @@ TOOL_OVERVIEW_END
 
                     <!-- Main Preview Container -->
                     <div id="preview-container" class="w-full flex justify-center items-center bg-gray-50 rounded-lg border border-gray-200 overflow-hidden relative p-4 min-h-[300px]">
-                        <p class="text-gray-400 italic" id="empty-state-text">Upload an image and click Convert</p>
-                        <!-- SVG Output Container - scales content inside -->
+                        <p class="text-gray-400 italic" id="empty-state-text">Upload an image and click Vectorize</p>
+                        <!-- SVG Output Container -->
                         <div id="svg-output" class="hidden shadow-xl w-full flex justify-center"></div>
                     </div>
                 </div>
@@ -194,217 +197,195 @@ TOOL_OVERVIEW_END
                     </div>
                 </div>
 
+                <!-- Debug Console (Moved Bottom) -->
+                <div class="bg-black rounded-xl shadow-sm border border-gray-800 overflow-hidden">
+                     <div class="bg-gray-800 px-4 py-2 flex justify-between items-center border-b border-gray-700">
+                        <span class="text-xs font-mono text-gray-400">Activity Log</span>
+                    </div>
+                    <div id="debug-log" class="p-4 font-mono text-xs text-green-400 h-24 overflow-y-auto">
+                        Waiting...
+                    </div>
+                </div>
+
             </div>
         </div>
     </main>
-
-    <!-- Hidden Elements for Processing -->
-    <canvas id="canvas-processing" class="hidden"></canvas>
-    <img id="image-src" class="hidden">
+    
+    <!-- Hidden Canvas -->
+    <canvas id="resize-canvas" class="hidden"></canvas>
 
     <script type="text/javascript">
-        let cvReady = false;
-        
-        // UI Elements
-        const statusText = document.getElementById('status-text');
-        const loader = document.getElementById('loader');
+        // --- UI Elements ---
+        const convertBtn = document.getElementById('convert-btn');
+        const debugLog = document.getElementById('debug-log');
         const fileInput = document.getElementById('fileInput');
         const sourcePreviewImg = document.getElementById('source-preview-img');
         const sourcePreviewContainer = document.getElementById('source-preview-container');
-        const convertBtn = document.getElementById('convert-btn');
         const emptyStateText = document.getElementById('empty-state-text');
         const svgOutput = document.getElementById('svg-output');
         const codeBlock = document.getElementById('code-block');
         const copyBtn = document.getElementById('copy-btn');
         const downloadBtn = document.getElementById('download-btn');
-        const imgElement = document.getElementById('image-src');
+        const fileSizeEl = document.getElementById('file-size');
+        const resizeCanvas = document.getElementById('resize-canvas');
+        const freezeWarning = document.getElementById('freeze-warning');
 
         // Inputs
-        const inputEdges = document.getElementById('input-edges');
-        const inputSmooth = document.getElementById('input-smooth');
-        const inputLevels = document.getElementById('input-levels');
+        const inputColors = document.getElementById('input-colors');
+        const inputRes = document.getElementById('input-res');
+        const inputSimple = document.getElementById('input-simple');
         
-        // Display Values
-        const valEdges = document.getElementById('val-edges');
-        const valSmooth = document.getElementById('val-smooth');
-        const valLevels = document.getElementById('val-levels');
+        const valColors = document.getElementById('val-colors');
+        const valRes = document.getElementById('val-res');
+        const valSimple = document.getElementById('val-simple');
 
-        // Link Sliders to Display Values
-        inputEdges.oninput = () => valEdges.textContent = inputEdges.value;
-        inputSmooth.oninput = () => valSmooth.textContent = inputSmooth.value;
-        inputLevels.oninput = () => valLevels.textContent = inputLevels.value;
-
-        // 1. Initialize OpenCV
-        function onOpenCvReady() {
-            cv['onRuntimeInitialized'] = () => {
-                cvReady = true;
-                statusText.innerText = "Ready";
-                statusText.classList.remove('text-amber-600');
-                statusText.classList.add('text-green-600');
-                loader.style.display = 'none';
-                fileInput.disabled = false;
-            };
+        // Updates
+        inputColors.oninput = () => valColors.textContent = inputColors.value;
+        inputRes.oninput = () => valRes.textContent = inputRes.value + "px";
+        
+        inputSimple.oninput = () => {
+            valSimple.textContent = inputSimple.value;
         }
 
-        // 2. Handle File Selection
+        // --- Logging ---
+        function log(msg, type='info') {
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'text-red-400' : (type === 'warn' ? 'text-amber-400' : 'text-green-400');
+            debugLog.innerHTML += `<div class="${color}">[${time}] ${msg}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        // --- Logic ---
         fileInput.addEventListener('change', (e) => {
             if (!e.target.files[0]) return;
-            
+            log("File selected.");
             const file = e.target.files[0];
             const reader = new FileReader();
-            
             reader.onload = function(event) {
-                // Set hidden source
-                imgElement.src = event.target.result;
-                
-                // Set visible preview
                 sourcePreviewImg.src = event.target.result;
                 sourcePreviewContainer.classList.remove('hidden');
-                
-                // Enable convert button once image loads
-                imgElement.onload = function() {
-                    convertBtn.disabled = false;
-                    convertBtn.classList.remove('opacity-50');
+                sourcePreviewImg.onload = () => {
+                     log(`Image loaded: ${sourcePreviewImg.naturalWidth}x${sourcePreviewImg.naturalHeight}`);
+                     convertBtn.disabled = false;
+                     convertBtn.classList.remove('opacity-50');
                 }
             };
             reader.readAsDataURL(file);
         });
 
-        // 3. Trigger Conversion
         convertBtn.addEventListener('click', () => {
-            if(!cvReady) return;
-            
-            // Set UI to loading state
             convertBtn.disabled = true;
-            convertBtn.innerHTML = `<span class="loader border-t-white border-2 w-4 h-4"></span> Processing...`;
-            statusText.innerText = "Processing...";
-            loader.style.display = 'block';
-
-            // Allow UI to update before blocking main thread
+            convertBtn.innerHTML = `<span class="loader border-t-white border-2 w-4 h-4"></span> processing...`;
+            freezeWarning.classList.remove('hidden');
+            log("Starting conversion...");
+            
+            // Allow UI to repaint
             setTimeout(() => {
-                try {
-                    processImage();
-                } catch (err) {
-                    console.error(err);
-                    alert("Error: " + err);
-                } finally {
-                    // Reset UI
-                    convertBtn.disabled = false;
-                    convertBtn.innerHTML = `
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-                        <span>Convert Image</span>
-                    `;
-                    statusText.innerText = "Done";
-                    loader.style.display = 'none';
-                }
-            }, 50);
+                processImage();
+            }, 100);
         });
 
-        // 4. Image Processing Logic
         function processImage() {
-            let src = cv.imread(imgElement);
-            
-            // Resize if too large (improves performance significantly)
-            let maxDim = 800;
-            let scaleFactor = 1.0;
-            if(src.cols > maxDim || src.rows > maxDim) {
-                scaleFactor = maxDim / Math.max(src.cols, src.rows);
-                let newSize = new cv.Size(src.cols * scaleFactor, src.rows * scaleFactor);
-                cv.resize(src, src, newSize, 0, 0, cv.INTER_AREA);
+            try {
+                // 1. Determine Scale (Fine Grained)
+                const ctx = resizeCanvas.getContext('2d');
+                const targetWidth = parseInt(inputRes.value);
+                
+                let w = sourcePreviewImg.naturalWidth;
+                let h = sourcePreviewImg.naturalHeight;
+                let scale = 1;
+                
+                if (w > targetWidth || h > targetWidth) {
+                    scale = targetWidth / Math.max(w, h);
+                }
+                
+                const newW = Math.floor(w * scale);
+                const newH = Math.floor(h * scale);
+                
+                resizeCanvas.width = newW;
+                resizeCanvas.height = newH;
+                ctx.drawImage(sourcePreviewImg, 0, 0, newW, newH);
+                
+                const imgData = ctx.getImageData(0, 0, newW, newH);
+                log(`Resized to ${newW}x${newH}`);
+
+                // 2. Configure ImageTracer
+                // Extended Simplification Logic 0-10
+                const simpleVal = parseInt(inputSimple.value);
+                let errThreshold = 1;
+                let pathOmit = 8;
+                
+                // Exponential-ish mapping for "Ultra Abstract" at high levels
+                if (simpleVal === 0) { errThreshold = 0.1; pathOmit = 0; }
+                else if (simpleVal <= 3) { 
+                    // 1-3: Standard details
+                    errThreshold = simpleVal * 0.4; 
+                    pathOmit = simpleVal * 3; 
+                } 
+                else if (simpleVal <= 6) {
+                    // 4-6: Abstract
+                    errThreshold = simpleVal * 1.5; 
+                    pathOmit = simpleVal * 10;
+                } 
+                else {
+                    // 7-10: Ultra Abstract (Geometric art)
+                    errThreshold = Math.pow(simpleVal, 1.8); // Ramps up fast (e.g., 10^1.8 ~ 63)
+                    pathOmit = Math.pow(simpleVal, 2.5); // Ramps up (e.g., 10^2.5 ~ 300)
+                }
+
+                log(`Engine settings: ErrorThreshold=${errThreshold.toFixed(1)}, PathOmit=${pathOmit.toFixed(0)}, Colors=${inputColors.value}`);
+
+                const options = {
+                    corsenabled: false,
+                    ltres: errThreshold, 
+                    qtres: errThreshold, 
+                    pathomit: pathOmit, 
+                    numberofcolors: parseInt(inputColors.value),
+                    scale: 1,
+                    simplify: 0,
+                    strokewidth: 0,
+                    viewbox: true, 
+                    desc: false
+                };
+                
+                const svgStr = ImageTracer.imagedataToSVG(imgData, options);
+
+                // 3. Display
+                displayResult(svgStr);
+                log("Conversion complete.");
+
+            } catch (err) {
+                log(`Error: ${err.message}`, 'error');
+                alert("Processing failed: " + err.message);
+            } finally {
+                convertBtn.disabled = false;
+                convertBtn.innerHTML = `<span>Vectorize Image</span>`;
+                freezeWarning.classList.add('hidden');
             }
-
-            // Get Settings
-            const blockSize = parseInt(inputEdges.value); // Must be odd
-            const smoothVal = parseInt(inputSmooth.value);
-            const numColors = parseInt(inputLevels.value);
-
-            // A. Prepare Edges
-            let gray = new cv.Mat();
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-            
-            // Median Blur (reduce noise before edge detection)
-            cv.medianBlur(gray, gray, 5);
-            
-            // Adaptive Threshold for Edges
-            let edges = new cv.Mat();
-            // blockSize, C (constant subtracted)
-            cv.adaptiveThreshold(gray, edges, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, blockSize, 5);
-            
-            // B. Prepare Color (Bilateral Filter)
-            let color = new cv.Mat();
-            cv.cvtColor(src, color, cv.COLOR_RGBA2RGB); 
-            
-            // Smooth Colors
-            let tempColor = new cv.Mat();
-            cv.bilateralFilter(color, tempColor, 9, smoothVal, smoothVal);
-            tempColor.copyTo(color);
-            
-            // C. Combine Edges and Color
-            let edgesColor = new cv.Mat();
-            cv.cvtColor(edges, edgesColor, cv.COLOR_GRAY2RGB);
-            
-            let cartoon = new cv.Mat();
-            cv.bitwise_and(color, edgesColor, cartoon);
-
-            // D. Generate Output
-            cv.imshow('canvas-processing', cartoon);
-            const canvas = document.getElementById('canvas-processing');
-            const dataUrl = canvas.toDataURL('image/png');
-            
-            generateSvg(dataUrl, cartoon.cols, cartoon.rows, numColors);
-
-            // Cleanup
-            src.delete(); gray.delete(); edges.delete();
-            color.delete(); tempColor.delete(); edgesColor.delete();
-            cartoon.delete();
         }
 
-        function generateSvg(base64Image, width, height, numColors) {
-            // Generate posterization table values
-            // Generates sequence like "0 0.33 0.66 1" for 4 colors
-            let tableValues = [];
-            for(let i=0; i<numColors; i++) {
-                tableValues.push((i / (numColors - 1)).toFixed(2));
-            }
-            const tableStr = tableValues.join(' ');
+        function displayResult(svgString) {
+            const sizeInBytes = new Blob([svgString]).size;
+            const sizeInKB = (sizeInBytes / 1024).toFixed(1);
+            fileSizeEl.textContent = `${sizeInKB} KB`;
+            fileSizeEl.classList.remove('hidden');
 
-            // SVG Logic: 
-            // 1. ViewBox defines aspect ratio.
-            // 2. preserveAspectRatio="xMidYMid meet" scales to fit.
-            // 3. style="width: 100%; height: auto;" makes it responsive in CSS.
-            const svgString = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto;" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-  <desc>Comic Style Image</desc>
-  <defs>
-    <filter id="posterize">
-      <feComponentTransfer>
-         <feFuncR type="discrete" tableValues="${tableStr}"/>
-         <feFuncG type="discrete" tableValues="${tableStr}"/>
-         <feFuncB type="discrete" tableValues="${tableStr}"/>
-      </feComponentTransfer>
-    </filter>
-  </defs>
-  <image width="${width}" height="${height}" href="${base64Image}" filter="url(#posterize)"/>
-</svg>`;
-
-            // Update UI
             emptyStateText.style.display = 'none';
-            svgOutput.style.display = 'flex'; // Changed to flex for centering
+            svgOutput.style.display = 'flex';
             svgOutput.innerHTML = svgString;
             
-            // Update Code Block
             codeBlock.textContent = svgString;
             hljs.highlightElement(codeBlock);
             
-            // Enable Actions
             copyBtn.disabled = false;
             downloadBtn.classList.remove('hidden');
-            
+
             downloadBtn.onclick = () => {
                 const blob = new Blob([svgString], {type: 'image/svg+xml'});
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'comic_style.svg';
+                a.download = 'vectorized.svg';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
