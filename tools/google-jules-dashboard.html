@@ -497,7 +497,7 @@ TOOL_OVERVIEW_END
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ userMessage: message })
+                    body: JSON.stringify({ prompt: message })
                 });
 
                 if (!response.ok) {
