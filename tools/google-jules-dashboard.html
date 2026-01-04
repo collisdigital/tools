@@ -772,14 +772,20 @@ TOOL_OVERVIEW_END
             if (artifact.bashOutput) {
                 const bash = artifact.bashOutput;
                 const isErr = bash.exitCode !== 0;
+                // Icons
+                const icon = isErr
+                    ? `<svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`
+                    : `<svg class="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
+
                 return `
-                    <div class="bg-gray-900 rounded-md overflow-hidden text-xs font-mono">
-                        <div class="bg-gray-800 px-3 py-1 text-gray-400 flex justify-between border-b border-gray-700">
-                            <span>$ ${escapeHtml(bash.command)}</span>
-                            <span class="${isErr ? 'text-red-400' : 'text-green-400'}">Exit: ${bash.exitCode}</span>
-                        </div>
-                        <div class="p-3 text-gray-300 whitespace-pre-wrap overflow-x-auto">${escapeHtml(bash.output)}</div>
-                    </div>
+                    <details class="bg-gray-900 rounded-md overflow-hidden text-xs font-mono group">
+                        <summary class="bg-gray-800 px-3 py-2 text-gray-300 flex items-start gap-2 cursor-pointer hover:bg-gray-700 transition-colors list-none outline-none border-b border-transparent group-open:border-gray-700">
+                            ${icon}
+                            <span class="break-words whitespace-pre-wrap flex-1 font-mono">$ ${escapeHtml(bash.command)}</span>
+                            <svg class="w-3 h-3 text-gray-500 transform transition-transform group-open:rotate-180 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <div class="p-3 text-gray-300 whitespace-pre-wrap overflow-x-auto border-t border-gray-700">${escapeHtml(bash.output)}</div>
+                    </details>
                 `;
             } else if (artifact.changeSet) {
                 const cs = artifact.changeSet;
