@@ -462,8 +462,21 @@ TOOL_OVERVIEW_END
         function applyBackgroundAndDisplay() {
             if (!rawSvgState) return;
 
+            // 1. Ensure the output container has the base SVG (if not already there or if we need to reset)
+            // If the SVG isn't in the DOM yet, or if it differs from rawSvgState (minus the rect), we should reset it.
+            // For simplicity and to ensure sync with rawSvgState, we can render the raw state first if needed.
+            // However, to follow the ID-based DOM approach efficiently:
+
+            const svgElement = svgOutput.querySelector('svg');
+            if (!svgElement) {
+                // Initial Render
+                displayResult(rawSvgState);
+                // Recursive call to apply background now that DOM exists
+                applyBackgroundAndDisplay();
+                return;
+            }
+
             const mode = bgSelect.value;
-            let finalSvg = rawSvgState;
             let fillColor = null;
 
             if (mode === 'white') fillColor = '#ffffff';
@@ -471,40 +484,47 @@ TOOL_OVERVIEW_END
             else if (mode === 'custom') fillColor = bgColorPicker.value;
             else if (mode === 'auto') fillColor = autoColorState;
 
+            // Check for existing background rect
+            const existingRect = svgElement.querySelector('#bg-rect');
+
             if (fillColor) {
-                // Robust injection: find the closing > of the opening <svg> tag.
-                // This handles attributes that might contain > in values (rare but possible) or newlines.
-                // We look for the first occurrence of <svg and then the first > after it.
-                const svgTagMatch = finalSvg.match(/<svg[^>]*>/);
-                if (svgTagMatch) {
-                    const insertIdx = svgTagMatch.index + svgTagMatch[0].length;
-                    const rect = `<rect width="100%" height="100%" fill="${fillColor}" x="0" y="0" />`;
-                    finalSvg = finalSvg.slice(0, insertIdx) + rect + finalSvg.slice(insertIdx);
+                if (existingRect) {
+                    // Update existing
+                    existingRect.setAttribute('fill', fillColor);
                 } else {
-                    // Fallback to simple append if regex fails (shouldn't happen)
-                    finalSvg = `<rect width="100%" height="100%" fill="${fillColor}" x="0" y="0" />` + finalSvg;
+                    // Create new
+                    // SVG elements need the namespace
+                    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    rect.setAttribute('id', 'bg-rect');
+                    rect.setAttribute('width', '100%');
+                    rect.setAttribute('height', '100%');
+                    rect.setAttribute('fill', fillColor);
+                    rect.setAttribute('x', '0');
+                    rect.setAttribute('y', '0');
+
+                    // Prepend to be the first child (background)
+                    svgElement.prepend(rect);
+                }
+            } else {
+                // Remove if exists
+                if (existingRect) {
+                    existingRect.remove();
                 }
             }
 
-            displayResult(finalSvg);
+            // Sync the changes back to the Code View and Download Button
+            updateCodeAndDownload(svgOutput.innerHTML);
         }
 
-        function displayResult(svgString) {
-            const sizeInBytes = new Blob([svgString]).size;
+        function updateCodeAndDownload(svgString) {
+             const sizeInBytes = new Blob([svgString]).size;
             const sizeInKB = (sizeInBytes / 1024).toFixed(1);
             fileSizeEl.textContent = `${sizeInKB} KB`;
             fileSizeEl.classList.remove('hidden');
 
-            emptyStateText.style.display = 'none';
-            svgOutput.style.display = 'flex';
-            svgOutput.innerHTML = svgString;
-            
             codeBlock.textContent = svgString;
             hljs.highlightElement(codeBlock);
             
-            copyBtn.disabled = false;
-            downloadBtn.classList.remove('hidden');
-
             downloadBtn.onclick = () => {
                 const blob = new Blob([svgString], {type: 'image/svg+xml'});
                 const url = URL.createObjectURL(blob);
@@ -523,6 +543,17 @@ TOOL_OVERVIEW_END
                     setTimeout(() => copyBtn.innerHTML = originalText, 2000);
                 });
             };
+        }
+
+        function displayResult(svgString) {
+            emptyStateText.style.display = 'none';
+            svgOutput.style.display = 'flex';
+            svgOutput.innerHTML = svgString;
+
+            copyBtn.disabled = false;
+            downloadBtn.classList.remove('hidden');
+
+            updateCodeAndDownload(svgString);
         }
     </script>
 </body>
