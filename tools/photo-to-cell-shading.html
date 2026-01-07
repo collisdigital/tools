@@ -1,0 +1,480 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "Cell Shading Tool",
+  "description": "Converts photos into a cell-shaded style SVG with distinct color bands and black outlines.",
+  "functionality": {
+    "Vectorization": "Converts photos to SVG paths with cell shading aesthetics.",
+    "Shadow Intensity": "Adjustable contrast to create hard edges and dramatic shadows.",
+    "Outline Control": "Configurable black outline thickness.",
+    "Color Clustering": "Quantizes colors into distinct flat bands.",
+    "Main Thread": "Runs synchronously for maximum reliability."
+  },
+  "dependencies": ["Tailwind CSS", "ImageTracer.js", "Highlight.js"],
+  "last_updated": "2025-01-28"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cell Shading Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+
+    <!-- Load ImageTracer.js -->
+    <script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.min.js"></script>
+
+    <style>
+        .code-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+        .code-scroll::-webkit-scrollbar-track { background: #1f2937; }
+        .code-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #9333ea;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #9333ea;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e5e7eb;
+            border-radius: 2px;
+        }
+        #svg-output svg {
+            width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-800 shadow-sm sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <div class="p-1.5 bg-purple-600 rounded text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
+                </div>
+                <h1 class="text-lg font-bold text-white">Cell Shading Tool</h1>
+            </div>
+            <div class="text-xs font-mono text-gray-400">v1.0</div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow p-4 md:p-6">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left Column: Controls (4 cols) -->
+            <div class="lg:col-span-4 space-y-5">
+
+                <!-- 1. Upload -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">1. Upload Photo</h2>
+                    <div class="relative border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 transition-colors group" id="drop-zone">
+                        <input type="file" id="fileInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <div class="flex flex-col items-center pointer-events-none">
+                            <svg class="w-8 h-8 text-gray-400 mb-2 group-hover:text-purple-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <span class="text-sm text-gray-600 font-medium">Click to upload</span>
+                        </div>
+                    </div>
+                    <!-- Source Preview -->
+                    <div id="source-preview-container" class="mt-4 hidden bg-gray-50 p-2 rounded-lg border border-gray-200">
+                        <p class="text-xs text-gray-500 mb-2">Source Preview:</p>
+                        <img id="source-preview-img" class="max-w-full max-h-60 h-auto object-contain mx-auto rounded">
+                    </div>
+                </div>
+
+                <!-- 2. Settings -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4">2. Cell Shading Settings</h2>
+
+                    <div class="space-y-6">
+
+                        <!-- Slider: Shadow Intensity -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-gray-700">Shadow Intensity</label>
+                                <span id="val-shadow" class="text-purple-600 font-mono">5</span>
+                            </div>
+                            <input type="range" id="input-shadow" min="0" max="10" step="1" value="5">
+                            <p class="text-xs text-gray-400 mt-1">Boosts contrast for harder edges.</p>
+                        </div>
+
+                         <!-- Slider: Outline Width -->
+                         <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-gray-700">Outline Thickness</label>
+                                <span id="val-outline" class="text-purple-600 font-mono">2</span>
+                            </div>
+                            <input type="range" id="input-outline" min="0" max="5" step="0.5" value="2">
+                            <p class="text-xs text-gray-400 mt-1">Width of black borders.</p>
+                        </div>
+
+                        <!-- Slider: Color Bands -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-gray-700">Color Bands</label>
+                                <span id="val-colors" class="text-purple-600 font-mono">8</span>
+                            </div>
+                            <input type="range" id="input-colors" min="2" max="16" step="1" value="8">
+                            <p class="text-xs text-gray-400 mt-1">Number of distinct colors (Clustering).</p>
+                        </div>
+
+                        <!-- Slider: Simplification -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-gray-700">Smoothing</label>
+                                <span id="val-simple" class="text-purple-600 font-mono">3</span>
+                            </div>
+                            <!-- Extended range 0-10 -->
+                            <input type="range" id="input-simple" min="0" max="10" step="1" value="3">
+                            <p class="text-xs text-gray-400 mt-1">Reduces detail for cleaner cells.</p>
+                        </div>
+
+                         <!-- Slider: Resolution -->
+                         <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-gray-700">Detail Level</label>
+                                <span id="val-res" class="text-purple-600 font-mono">600px</span>
+                            </div>
+                            <!-- Fine grained 200-1200 -->
+                            <input type="range" id="input-res" min="200" max="1200" step="50" value="600">
+                            <p class="text-xs text-gray-400 mt-1">Processing resolution.</p>
+                        </div>
+                    </div>
+
+                    <!-- Convert Button -->
+                    <div class="mt-6 pt-4 border-t border-gray-100">
+                        <button id="convert-btn" class="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2" disabled>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            <span>Apply Cell Shading</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Output (8 cols) -->
+            <div class="lg:col-span-8 space-y-6 flex flex-col">
+
+                <!-- Preview -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col h-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center gap-4">
+                            <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wide">3. Result</h2>
+                            <span id="freeze-warning" class="hidden text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded font-medium animate-pulse">Processing...</span>
+                            <span id="file-size" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded hidden">0 KB</span>
+                        </div>
+                        <button id="download-btn" class="hidden text-sm px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition flex items-center gap-2 font-medium">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Download SVG
+                        </button>
+                    </div>
+
+                    <!-- Main Preview Container -->
+                    <div id="preview-container" class="w-full flex justify-center items-center bg-gray-50 rounded-lg border border-gray-200 overflow-hidden relative p-4 min-h-[300px]">
+                        <p class="text-gray-400 italic" id="empty-state-text">Upload an image and click Apply</p>
+                        <!-- SVG Output Container -->
+                        <div id="svg-output" class="hidden shadow-xl w-full flex justify-center"></div>
+                    </div>
+                </div>
+
+                <!-- Code View -->
+                <div class="bg-gray-900 rounded-xl shadow-sm border border-gray-800 overflow-hidden">
+                    <div class="bg-gray-800 px-4 py-2 flex justify-between items-center border-b border-gray-700">
+                        <span class="text-xs font-mono text-gray-400">output.svg</span>
+                        <button id="copy-btn" class="text-xs text-white bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded transition flex items-center gap-1" disabled>
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                            Copy Code
+                        </button>
+                    </div>
+                    <div class="relative">
+                        <pre><code class="language-xml code-scroll max-h-[200px] text-sm overflow-auto" id="code-block">&lt;!-- SVG code will appear here --&gt;</code></pre>
+                    </div>
+                </div>
+
+                <!-- Debug Console (Moved Bottom) -->
+                <div class="bg-black rounded-xl shadow-sm border border-gray-800 overflow-hidden">
+                     <div class="bg-gray-800 px-4 py-2 flex justify-between items-center border-b border-gray-700">
+                        <span class="text-xs font-mono text-gray-400">Activity Log</span>
+                    </div>
+                    <div id="debug-log" class="p-4 font-mono text-xs text-green-400 h-24 overflow-y-auto">
+                        Waiting...
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Hidden Canvas -->
+    <canvas id="resize-canvas" class="hidden"></canvas>
+
+    <script type="text/javascript">
+        // --- UI Elements ---
+        const convertBtn = document.getElementById('convert-btn');
+        const debugLog = document.getElementById('debug-log');
+        const fileInput = document.getElementById('fileInput');
+        const sourcePreviewImg = document.getElementById('source-preview-img');
+        const sourcePreviewContainer = document.getElementById('source-preview-container');
+        const emptyStateText = document.getElementById('empty-state-text');
+        const svgOutput = document.getElementById('svg-output');
+        const codeBlock = document.getElementById('code-block');
+        const copyBtn = document.getElementById('copy-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const fileSizeEl = document.getElementById('file-size');
+        const resizeCanvas = document.getElementById('resize-canvas');
+        const freezeWarning = document.getElementById('freeze-warning');
+
+        // Inputs
+        const inputColors = document.getElementById('input-colors');
+        const inputRes = document.getElementById('input-res');
+        const inputSimple = document.getElementById('input-simple');
+        const inputShadow = document.getElementById('input-shadow');
+        const inputOutline = document.getElementById('input-outline');
+
+        const valColors = document.getElementById('val-colors');
+        const valRes = document.getElementById('val-res');
+        const valSimple = document.getElementById('val-simple');
+        const valShadow = document.getElementById('val-shadow');
+        const valOutline = document.getElementById('val-outline');
+
+        // Updates
+        inputColors.oninput = () => valColors.textContent = inputColors.value;
+        inputRes.oninput = () => valRes.textContent = inputRes.value + "px";
+        inputShadow.oninput = () => valShadow.textContent = inputShadow.value;
+        inputOutline.oninput = () => valOutline.textContent = inputOutline.value + "px";
+
+        inputSimple.oninput = () => {
+            valSimple.textContent = inputSimple.value;
+        }
+
+        // --- Logging ---
+        function log(msg, type='info') {
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'text-red-400' : (type === 'warn' ? 'text-amber-400' : 'text-green-400');
+            debugLog.innerHTML += `<div class="${color}">[${time}] ${msg}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        // --- Logic ---
+        fileInput.addEventListener('change', (e) => {
+            if (!e.target.files[0]) return;
+            log("File selected.");
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                sourcePreviewImg.src = event.target.result;
+                sourcePreviewContainer.classList.remove('hidden');
+                sourcePreviewImg.onload = () => {
+                     log(`Image loaded: ${sourcePreviewImg.naturalWidth}x${sourcePreviewImg.naturalHeight}`);
+                     convertBtn.disabled = false;
+                     convertBtn.classList.remove('opacity-50');
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        convertBtn.addEventListener('click', () => {
+            convertBtn.disabled = true;
+            convertBtn.innerHTML = `<span class="loader border-t-white border-2 w-4 h-4"></span> processing...`;
+            freezeWarning.classList.remove('hidden');
+            log("Starting conversion...");
+
+            // Allow UI to repaint
+            setTimeout(() => {
+                processImage();
+            }, 100);
+        });
+
+        function processImage() {
+            try {
+                // 1. Determine Scale (Fine Grained)
+                const ctx = resizeCanvas.getContext('2d');
+                const targetWidth = parseInt(inputRes.value);
+
+                let w = sourcePreviewImg.naturalWidth;
+                let h = sourcePreviewImg.naturalHeight;
+                let scale = 1;
+
+                if (w > targetWidth || h > targetWidth) {
+                    scale = targetWidth / Math.max(w, h);
+                }
+
+                const newW = Math.floor(w * scale);
+                const newH = Math.floor(h * scale);
+
+                resizeCanvas.width = newW;
+                resizeCanvas.height = newH;
+
+                // Draw initial image
+                ctx.drawImage(sourcePreviewImg, 0, 0, newW, newH);
+
+                // 2. Pre-processing: Cell Shading Effects (Pixel Manipulation)
+                const imgData = ctx.getImageData(0, 0, newW, newH);
+                const data = imgData.data;
+
+                // Settings
+                const shadowIntensity = parseInt(inputShadow.value); // 0-10
+                const colorsCount = parseInt(inputColors.value);
+
+                // Contrast Factor
+                // Formula: factor = (259 * (contrast + 255)) / (255 * (259 - contrast))
+                // Map 0-10 to -50 to 100 range for contrast
+                const contrastVal = (shadowIntensity * 15);
+                const contrastFactor = (259 * (contrastVal + 255)) / (255 * (259 - contrastVal));
+
+                for (let i = 0; i < data.length; i += 4) {
+                    let r = data[i];
+                    let g = data[i+1];
+                    let b = data[i+2];
+
+                    // A. Apply Contrast (Shadow Intensity)
+                    if (shadowIntensity > 0) {
+                        r = contrastFactor * (r - 128) + 128;
+                        g = contrastFactor * (g - 128) + 128;
+                        b = contrastFactor * (b - 128) + 128;
+                    }
+
+                    // B. Posterization (Clustering)
+                    // Quantize to 'colorsCount' levels per channel?
+                    // Or actually, simple RGB rounding is usually enough to create flat bands
+                    // Let's use a step function
+                    const step = 255 / (colorsCount - 1);
+                    r = Math.round(r / step) * step;
+                    g = Math.round(g / step) * step;
+                    b = Math.round(b / step) * step;
+
+                    // Clamp
+                    data[i] = Math.max(0, Math.min(255, r));
+                    data[i+1] = Math.max(0, Math.min(255, g));
+                    data[i+2] = Math.max(0, Math.min(255, b));
+                }
+
+                // Put manipulated data back for tracing
+                // We don't necessarily need to put it back on canvas for ImageTracer (it takes ImageData)
+                // But it's good for debugging if we ever wanted to show the pre-trace state
+                ctx.putImageData(imgData, 0, 0);
+                log("Applied contrast and posterization.");
+
+                // 3. Configure ImageTracer
+                const simpleVal = parseInt(inputSimple.value);
+                const outlineWidth = parseFloat(inputOutline.value);
+
+                let errThreshold = 1;
+                let pathOmit = 8;
+
+                // Simplification logic
+                if (simpleVal === 0) { errThreshold = 0.1; pathOmit = 0; }
+                else if (simpleVal <= 3) {
+                    errThreshold = simpleVal * 0.4;
+                    pathOmit = simpleVal * 3;
+                }
+                else if (simpleVal <= 6) {
+                    errThreshold = simpleVal * 1.5;
+                    pathOmit = simpleVal * 10;
+                }
+                else {
+                    errThreshold = Math.pow(simpleVal, 1.8);
+                    pathOmit = Math.pow(simpleVal, 2.5);
+                }
+
+                log(`Engine: Error=${errThreshold.toFixed(1)}, Omit=${pathOmit.toFixed(0)}, Colors=${colorsCount}, Stroke=${outlineWidth}`);
+
+                const options = {
+                    corsenabled: false,
+                    ltres: errThreshold,
+                    qtres: errThreshold,
+                    pathomit: pathOmit,
+                    numberofcolors: colorsCount,
+                    scale: 1,
+                    simplify: 0,
+                    // Stroke settings for Cell Shading
+                    strokewidth: outlineWidth,
+                    linefilter: true, // Enable line tracing
+                    viewbox: true,
+                    desc: false
+                };
+
+                // ImageTracer can take the manipulated imageData directly
+                const svgStr = ImageTracer.imagedataToSVG(imgData, options);
+
+                // 4. Display
+                displayResult(svgStr);
+                log("Conversion complete.");
+
+            } catch (err) {
+                log(`Error: ${err.message}`, 'error');
+                console.error(err);
+                alert("Processing failed: " + err.message);
+            } finally {
+                convertBtn.disabled = false;
+                convertBtn.innerHTML = `<span>Apply Cell Shading</span>`;
+                freezeWarning.classList.add('hidden');
+            }
+        }
+
+        function displayResult(svgString) {
+            const sizeInBytes = new Blob([svgString]).size;
+            const sizeInKB = (sizeInBytes / 1024).toFixed(1);
+            fileSizeEl.textContent = `${sizeInKB} KB`;
+            fileSizeEl.classList.remove('hidden');
+
+            emptyStateText.style.display = 'none';
+            svgOutput.style.display = 'flex';
+            svgOutput.innerHTML = svgString;
+
+            codeBlock.textContent = svgString;
+            hljs.highlightElement(codeBlock);
+
+            copyBtn.disabled = false;
+            downloadBtn.classList.remove('hidden');
+
+            downloadBtn.onclick = () => {
+                const blob = new Blob([svgString], {type: 'image/svg+xml'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'cell-shaded.svg';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(svgString).then(() => {
+                    const originalText = copyBtn.innerHTML;
+                    copyBtn.innerHTML = `<span class="text-green-400">Copied!</span>`;
+                    setTimeout(() => copyBtn.innerHTML = originalText, 2000);
+                });
+            };
+        }
+    </script>
+</body>
+</html>
