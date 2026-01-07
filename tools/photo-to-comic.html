@@ -146,6 +146,16 @@ TOOL_OVERVIEW_END
                             <input type="range" id="input-res" min="200" max="1200" step="50" value="600">
                             <p class="text-xs text-gray-400 mt-1">Processing resolution. Lower = Faster/Blockier.</p>
                         </div>
+
+                        <!-- Slider 4: Gap Correction -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-gray-700">Gap Correction (Stroke)</label>
+                                <span id="val-gap" class="text-purple-600 font-mono">0px</span>
+                            </div>
+                            <input type="range" id="input-gap" min="0" max="2" step="0.1" value="0">
+                            <p class="text-xs text-gray-400 mt-1">Add stroke to fill white gaps (0 = Off). Trade-off: slightly larger file.</p>
+                        </div>
                     </div>
 
                     <!-- Convert Button -->
@@ -234,14 +244,17 @@ TOOL_OVERVIEW_END
         const inputColors = document.getElementById('input-colors');
         const inputRes = document.getElementById('input-res');
         const inputSimple = document.getElementById('input-simple');
+        const inputGap = document.getElementById('input-gap');
         
         const valColors = document.getElementById('val-colors');
         const valRes = document.getElementById('val-res');
         const valSimple = document.getElementById('val-simple');
+        const valGap = document.getElementById('val-gap');
 
         // Updates
         inputColors.oninput = () => valColors.textContent = inputColors.value;
         inputRes.oninput = () => valRes.textContent = inputRes.value + "px";
+        inputGap.oninput = () => valGap.textContent = inputGap.value + "px";
         
         inputSimple.oninput = () => {
             valSimple.textContent = inputSimple.value;
@@ -348,7 +361,20 @@ TOOL_OVERVIEW_END
                     desc: false
                 };
                 
-                const svgStr = ImageTracer.imagedataToSVG(imgData, options);
+                let svgStr = ImageTracer.imagedataToSVG(imgData, options);
+
+                // 2.1 Post-Processing: Gap Filling
+                // If the user set a gap correction value > 0, we apply that as a stroke to all paths.
+                const gapVal = parseFloat(inputGap.value);
+                if (gapVal > 0) {
+                    log(`Applying gap correction: stroke-width=${gapVal}px`);
+                    // Regex to find fill attributes and append matching stroke attributes
+                    // Looks for: fill="rgb(r,g,b)" or fill="#hex"
+                    // We capture the color and use it for the stroke.
+                    svgStr = svgStr.replace(/fill="([^"]+)"/g, (match, color) => {
+                        return `fill="${color}" stroke="${color}" stroke-width="${gapVal}" stroke-linejoin="round"`;
+                    });
+                }
 
                 // 3. Display
                 displayResult(svgStr);
