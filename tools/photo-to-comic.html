@@ -156,6 +156,24 @@ TOOL_OVERVIEW_END
                             <input type="range" id="input-gap" min="0" max="10" step="0.1" value="0">
                             <p class="text-xs text-gray-400 mt-1">Add stroke to fill white gaps (0 = Off). Trade-off: slightly larger file.</p>
                         </div>
+
+                        <!-- Background Setting -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-gray-700">Background Layer</label>
+                            </div>
+                            <div class="flex gap-2">
+                                <select id="bg-select" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-2.5">
+                                    <option value="none" selected>None (Transparent)</option>
+                                    <option value="auto">Auto (Dominant Color)</option>
+                                    <option value="white">White</option>
+                                    <option value="black">Black</option>
+                                    <option value="custom">Custom Color...</option>
+                                </select>
+                                <input type="color" id="bg-color-picker" class="h-10 w-10 p-0 border-0 rounded cursor-pointer hidden" value="#ffffff">
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1">Injects a solid background rectangle behind the vector.</p>
+                        </div>
                     </div>
 
                     <!-- Convert Button -->
@@ -246,6 +264,14 @@ TOOL_OVERVIEW_END
         const inputSimple = document.getElementById('input-simple');
         const inputGap = document.getElementById('input-gap');
         
+        // Background Inputs
+        const bgSelect = document.getElementById('bg-select');
+        const bgColorPicker = document.getElementById('bg-color-picker');
+
+        // State
+        let rawSvgState = '';
+        let autoColorState = '#ffffff';
+
         const valColors = document.getElementById('val-colors');
         const valRes = document.getElementById('val-res');
         const valSimple = document.getElementById('val-simple');
@@ -259,6 +285,19 @@ TOOL_OVERVIEW_END
         inputSimple.oninput = () => {
             valSimple.textContent = inputSimple.value;
         }
+
+        bgSelect.addEventListener('change', () => {
+            if (bgSelect.value === 'custom') {
+                bgColorPicker.classList.remove('hidden');
+            } else {
+                bgColorPicker.classList.add('hidden');
+            }
+            if (rawSvgState) applyBackgroundAndDisplay();
+        });
+
+        bgColorPicker.addEventListener('input', () => {
+             if (rawSvgState) applyBackgroundAndDisplay();
+        });
 
         // --- Logging ---
         function log(msg, type='info') {
@@ -376,8 +415,14 @@ TOOL_OVERVIEW_END
                     });
                 }
 
-                // 3. Display
-                displayResult(svgStr);
+                // 3. Store Result & Calculate Auto Color
+                rawSvgState = svgStr;
+                autoColorState = getDominantColorFromSVG(svgStr);
+                log(`Auto Background Color Detected: ${autoColorState}`);
+
+                // 4. Apply Background & Display
+                // Force a refresh of the DOM since we have a new SVG
+                applyBackgroundAndDisplay(true);
                 log("Conversion complete.");
 
             } catch (err) {
@@ -390,22 +435,95 @@ TOOL_OVERVIEW_END
             }
         }
 
-        function displayResult(svgString) {
-            const sizeInBytes = new Blob([svgString]).size;
+        function getDominantColorFromSVG(svgStr) {
+            // Option A/D Hybrid: Analyze the SVG content to find the most frequent fill color.
+            // This ensures we pick a color that is actually in the palette.
+            // Regex to find all fill="..." occurrences.
+            // Handles both fill="rgb(...)" and fill="#..." although ImageTracer usually outputs rgb
+            const fillRegex = /fill="([^"]+)"/g;
+            const counts = {};
+            let match;
+            let maxCount = 0;
+            let dominant = '#ffffff';
+
+            while ((match = fillRegex.exec(svgStr)) !== null) {
+                const color = match[1];
+                // Skip 'none' or 'transparent' if they exist (unlikely in paths)
+                if (color === 'none' || color === 'transparent') continue;
+
+                counts[color] = (counts[color] || 0) + 1;
+                if (counts[color] > maxCount) {
+                    maxCount = counts[color];
+                    dominant = color;
+                }
+            }
+            return dominant;
+        }
+
+        function applyBackgroundAndDisplay(forceRefresh = false) {
+            if (!rawSvgState) return;
+
+            // 1. Ensure the output container has the base SVG (if not already there or if we need to reset)
+            const svgElement = svgOutput.querySelector('svg');
+
+            if (forceRefresh || !svgElement) {
+                // Render the raw SVG first
+                displayResult(rawSvgState);
+                // Recursive call to apply background now that DOM is fresh
+                // We pass false to avoid infinite recursion
+                applyBackgroundAndDisplay(false);
+                return;
+            }
+
+            const mode = bgSelect.value;
+            let fillColor = null;
+
+            if (mode === 'white') fillColor = '#ffffff';
+            else if (mode === 'black') fillColor = '#000000';
+            else if (mode === 'custom') fillColor = bgColorPicker.value;
+            else if (mode === 'auto') fillColor = autoColorState;
+
+            // Check for existing background rect
+            const existingRect = svgElement.querySelector('#bg-rect');
+
+            if (fillColor) {
+                if (existingRect) {
+                    // Update existing
+                    existingRect.setAttribute('fill', fillColor);
+                } else {
+                    // Create new
+                    // SVG elements need the namespace
+                    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    rect.setAttribute('id', 'bg-rect');
+                    rect.setAttribute('width', '100%');
+                    rect.setAttribute('height', '100%');
+                    rect.setAttribute('fill', fillColor);
+                    rect.setAttribute('x', '0');
+                    rect.setAttribute('y', '0');
+
+                    // Prepend to be the first child (background)
+                    svgElement.prepend(rect);
+                }
+            } else {
+                // Remove if exists
+                if (existingRect) {
+                    existingRect.remove();
+                }
+            }
+
+            // Sync the changes back to the Code View and Download Button
+            updateCodeAndDownload(svgOutput.innerHTML);
+        }
+
+        function updateCodeAndDownload(svgString) {
+             const sizeInBytes = new Blob([svgString]).size;
             const sizeInKB = (sizeInBytes / 1024).toFixed(1);
             fileSizeEl.textContent = `${sizeInKB} KB`;
             fileSizeEl.classList.remove('hidden');
 
-            emptyStateText.style.display = 'none';
-            svgOutput.style.display = 'flex';
-            svgOutput.innerHTML = svgString;
-            
             codeBlock.textContent = svgString;
             hljs.highlightElement(codeBlock);
             
-            copyBtn.disabled = false;
-            downloadBtn.classList.remove('hidden');
-
             downloadBtn.onclick = () => {
                 const blob = new Blob([svgString], {type: 'image/svg+xml'});
                 const url = URL.createObjectURL(blob);
@@ -424,6 +542,17 @@ TOOL_OVERVIEW_END
                     setTimeout(() => copyBtn.innerHTML = originalText, 2000);
                 });
             };
+        }
+
+        function displayResult(svgString) {
+            emptyStateText.style.display = 'none';
+            svgOutput.style.display = 'flex';
+            svgOutput.innerHTML = svgString;
+
+            copyBtn.disabled = false;
+            downloadBtn.classList.remove('hidden');
+
+            updateCodeAndDownload(svgString);
         }
     </script>
 </body>
