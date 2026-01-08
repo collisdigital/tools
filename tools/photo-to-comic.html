@@ -421,7 +421,8 @@ TOOL_OVERVIEW_END
                 log(`Auto Background Color Detected: ${autoColorState}`);
 
                 // 4. Apply Background & Display
-                applyBackgroundAndDisplay();
+                // Force a refresh of the DOM since we have a new SVG
+                applyBackgroundAndDisplay(true);
                 log("Conversion complete.");
 
             } catch (err) {
@@ -459,20 +460,18 @@ TOOL_OVERVIEW_END
             return dominant;
         }
 
-        function applyBackgroundAndDisplay() {
+        function applyBackgroundAndDisplay(forceRefresh = false) {
             if (!rawSvgState) return;
 
             // 1. Ensure the output container has the base SVG (if not already there or if we need to reset)
-            // If the SVG isn't in the DOM yet, or if it differs from rawSvgState (minus the rect), we should reset it.
-            // For simplicity and to ensure sync with rawSvgState, we can render the raw state first if needed.
-            // However, to follow the ID-based DOM approach efficiently:
-
             const svgElement = svgOutput.querySelector('svg');
-            if (!svgElement) {
-                // Initial Render
+
+            if (forceRefresh || !svgElement) {
+                // Render the raw SVG first
                 displayResult(rawSvgState);
-                // Recursive call to apply background now that DOM exists
-                applyBackgroundAndDisplay();
+                // Recursive call to apply background now that DOM is fresh
+                // We pass false to avoid infinite recursion
+                applyBackgroundAndDisplay(false);
                 return;
             }
 
