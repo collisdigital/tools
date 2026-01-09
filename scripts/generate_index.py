@@ -77,6 +77,31 @@ def remove_existing_footer(content):
     pattern = r'\s*<!-- Auto-generated Footer -->.*</footer>'
     return re.sub(pattern, '', content, flags=re.DOTALL)
 
+def wrap_flex_body_content(content):
+    """
+    Detects if the body tag has flex classes. If so, wraps the inner content in a div
+    that inherits the body's attributes, and strips attributes from the new body tag.
+    This ensures the footer (injected later) sits below the layout wrapper.
+    """
+    body_pattern = re.compile(r'<body([^>]*)>', re.IGNORECASE)
+    match = body_pattern.search(content)
+
+    if match:
+        attrs = match.group(1)
+        # Check if "flex" is present in the attributes
+        if 'flex' in attrs:
+            # Replace opening body tag with body + wrapper div
+            # We preserve the attributes on the div, and clean the body
+            new_opening = f'<body>\n<div{attrs}>'
+            content = content[:match.start()] + new_opening + content[match.end():]
+
+            # Replace closing body tag with closing div + closing body
+            if "</body>" in content:
+                parts = content.rsplit("</body>", 1)
+                content = parts[0] + "\n</div>\n</body>" + parts[1]
+
+    return content
+
 def extract_tool_overview(content):
     """Extracts the JSON object from the TOOL_OVERVIEW block."""
     pattern = r'TOOL_OVERVIEW_START(.*?)TOOL_OVERVIEW_END'
@@ -186,6 +211,10 @@ def main():
             content = f.read()
         
         content = remove_existing_footer(content)
+
+        # Wrap flex body content BEFORE injecting footer
+        content = wrap_flex_body_content(content)
+
         footer = get_footer_html(f_name, is_index=False)
         
         if "</main>" in content:
