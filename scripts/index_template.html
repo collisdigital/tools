@@ -23,7 +23,12 @@
                         <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
                     </svg>
                 </div>
-                <input type="text" id="toolSearch" placeholder="Search tools..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" autocomplete="off">
+                <input type="text" id="toolSearch" placeholder="Search tools..." class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" autocomplete="off">
+                <button id="clearSearch" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none hidden">
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                    </svg>
+                </button>
             </div>
         </header>
 
@@ -38,16 +43,24 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const searchInput = document.getElementById('toolSearch');
+            const clearButton = document.getElementById('clearSearch');
             const toolsGrid = document.getElementById('toolsGrid');
             const noResults = document.getElementById('noResults');
 
             // Get all tool cards (anchor tags)
             const getToolCards = () => Array.from(toolsGrid.querySelectorAll('a'));
 
-            searchInput.addEventListener('input', (e) => {
-                const searchTerm = e.target.value.toLowerCase().trim();
+            const performSearch = () => {
+                const searchTerm = searchInput.value.toLowerCase().trim();
                 const toolCards = getToolCards();
                 let visibleCount = 0;
+
+                // Toggle clear button
+                if (searchTerm.length > 0) {
+                    clearButton.classList.remove('hidden');
+                } else {
+                    clearButton.classList.add('hidden');
+                }
 
                 // Requirement: Only filter after 3 or more characters
                 const shouldFilter = searchTerm.length >= 3;
@@ -77,6 +90,14 @@
                 } else {
                     noResults.classList.add('hidden');
                 }
+            };
+
+            searchInput.addEventListener('input', performSearch);
+
+            clearButton.addEventListener('click', () => {
+                searchInput.value = '';
+                searchInput.focus();
+                performSearch();
             });
         });
     </script>
