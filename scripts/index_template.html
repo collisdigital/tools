@@ -15,12 +15,70 @@
     <div class="flex-grow container mx-auto px-4 py-12 max-w-4xl">
         <header class="mb-12 text-center">
             <h1 class="text-4xl font-bold text-gray-800 mb-2">Chris Collis' Tools</h1>
-            <p class="text-gray-600">A collection of HTML projects in this repository.</p>
+            <p class="text-gray-600 mb-8">A collection of HTML projects in this repository.</p>
+
+            <div class="relative max-w-md mx-auto">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <input type="text" id="toolSearch" placeholder="Search tools..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" autocomplete="off">
+            </div>
         </header>
 
-        <main class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <main class="grid grid-cols-1 md:grid-cols-2 gap-6" id="toolsGrid">
+            <div id="noResults" class="hidden col-span-1 md:col-span-2 text-center py-12 text-gray-500">
+                <p class="text-lg">No tools found matching your search.</p>
+            </div>
             {{ LINKS_PLACEHOLDER }}
         </main>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('toolSearch');
+            const toolsGrid = document.getElementById('toolsGrid');
+            const noResults = document.getElementById('noResults');
+
+            // Get all tool cards (anchor tags)
+            const getToolCards = () => Array.from(toolsGrid.querySelectorAll('a'));
+
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                const toolCards = getToolCards();
+                let visibleCount = 0;
+
+                // Requirement: Only filter after 3 or more characters
+                const shouldFilter = searchTerm.length >= 3;
+
+                toolCards.forEach(card => {
+                    if (!shouldFilter) {
+                        // Show all if search term is too short
+                        card.classList.remove('hidden');
+                        visibleCount++;
+                    } else {
+                        // Filter based on title
+                        const titleElement = card.querySelector('h2');
+                        const title = titleElement ? titleElement.textContent.toLowerCase() : '';
+
+                        if (title.includes(searchTerm)) {
+                            card.classList.remove('hidden');
+                            visibleCount++;
+                        } else {
+                            card.classList.add('hidden');
+                        }
+                    }
+                });
+
+                // Show/Hide "No Results" message
+                if (visibleCount === 0) {
+                    noResults.classList.remove('hidden');
+                } else {
+                    noResults.classList.add('hidden');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
