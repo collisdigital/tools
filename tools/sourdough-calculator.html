@@ -5,7 +5,8 @@ TOOL_OVERVIEW_START
   "description": "A responsive single-page application for calculating sourdough bread ingredient weights based on target hydration and flour mass. Features 'Smart Calculation' to account for starter composition.",
   "functionality": {
     "smart_hydration": "Automatically adjusts added water by factoring in the water content of the sourdough starter.",
-    "dynamic_sliders": "Real-time updates for hydration, starter percentage, and salt percentage via interactive sliders."
+    "dynamic_sliders": "Real-time updates for hydration, starter percentage, and salt percentage via interactive sliders.",
+    "flour_blends": "Allows users to input a mix of different flour types (White, Whole Wheat, Rye) and calculates the total base automatically."
   },
   "dependencies": ["Tailwind CSS", "Font Awesome", "Google Fonts"],
   "last_updated": "2026-01-09"
@@ -67,6 +68,14 @@ TOOL_OVERVIEW_END
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        /* Custom scrollbar for flour list */
+        .flour-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .flour-list::-webkit-scrollbar-thumb {
+            background-color: #e7e5e4;
+            border-radius: 3px;
+        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -87,17 +96,54 @@ TOOL_OVERVIEW_END
         <!-- Controls -->
         <div class="p-8 space-y-8">
             
-            <!-- Flour Input -->
+            <!-- Flour Section -->
             <div class="space-y-3">
                 <div class="flex justify-between items-end">
                     <label class="text-sm font-bold text-stone-500 uppercase tracking-wider">Flour Weight</label>
-                    <span class="text-amber-600 font-bold bg-amber-50 px-2 py-1 rounded text-sm">Base</span>
+                    
+                    <!-- Blend Toggle -->
+                    <div class="flex items-center space-x-2 text-xs font-bold cursor-pointer bg-stone-100 rounded-lg p-1" onclick="toggleFlourMode()">
+                        <span id="singleModeBtn" class="px-2 py-1 rounded bg-white shadow text-amber-600 transition-all">Total</span>
+                        <span id="blendModeBtn" class="px-2 py-1 rounded text-stone-400 transition-all">Blend</span>
+                    </div>
                 </div>
-                <div class="relative flex items-center">
+
+                <!-- Single Input Mode -->
+                <div id="singleFlourContainer" class="relative flex items-center transition-all">
                     <input type="number" id="flourInput" value="500" class="input-number w-full text-4xl font-bold text-stone-800 border-b-2 border-stone-200 focus:border-amber-500 outline-none py-2 bg-transparent transition-colors" placeholder="0">
                     <span class="absolute right-0 text-xl text-stone-400 font-semibold pointer-events-none">g</span>
                 </div>
-                <p class="text-xs text-stone-400">The total amount of flour you want to use.</p>
+
+                <!-- Blend Input Mode (Hidden by default) -->
+                <div id="blendFlourContainer" class="hidden space-y-3 bg-stone-50 p-4 rounded-xl border border-stone-100">
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2">
+                            <label class="w-24 text-xs font-bold text-stone-500">White/Bread</label>
+                            <input type="number" data-type="white" class="blend-input input-number flex-1 bg-white border border-stone-200 rounded px-2 py-1 text-stone-700 focus:border-amber-500 outline-none" value="400">
+                            <span class="text-stone-400 text-xs">g</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="w-24 text-xs font-bold text-stone-500">Whole Wheat</label>
+                            <input type="number" data-type="wheat" class="blend-input input-number flex-1 bg-white border border-stone-200 rounded px-2 py-1 text-stone-700 focus:border-amber-500 outline-none" value="100">
+                            <span class="text-stone-400 text-xs">g</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="w-24 text-xs font-bold text-stone-500">Rye/Other</label>
+                            <input type="number" data-type="rye" class="blend-input input-number flex-1 bg-white border border-stone-200 rounded px-2 py-1 text-stone-700 focus:border-amber-500 outline-none" value="0">
+                            <span class="text-stone-400 text-xs">g</span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-stone-200">
+                        <span class="text-xs font-bold text-amber-700">TOTAL BASE</span>
+                        <span class="text-lg font-bold text-amber-700"><span id="blendTotal">500</span>g</span>
+                    </div>
+                </div>
+                
+                <!-- Dynamic Tip -->
+                <div id="flourTip" class="hidden text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-100 flex items-start gap-2">
+                    <i class="fas fa-lightbulb mt-0.5"></i>
+                    <span>Tip: Whole grain flours are thirsty! Consider increasing hydration by 2-5%.</span>
+                </div>
             </div>
 
             <!-- Hydration Slider -->
@@ -167,13 +213,18 @@ TOOL_OVERVIEW_END
                 
                 <div class="space-y-4 relative z-10">
                     <div class="flex justify-between items-center group">
-                        <span class="text-stone-400 font-medium group-hover:text-stone-300 transition">Flour</span>
+                        <span class="text-stone-400 font-medium group-hover:text-stone-300 transition">Flour (Total)</span>
                         <div class="flex items-baseline gap-1">
                             <span id="resFlour" class="text-2xl font-bold">500</span>
                             <span class="text-sm text-stone-500">g</span>
                         </div>
                     </div>
                     
+                    <!-- Breakdown (only visible in Blend mode) -->
+                    <div id="flourBreakdown" class="hidden pl-4 border-l-2 border-stone-600 text-xs text-stone-400 space-y-1">
+                        <!-- Populated by JS -->
+                    </div>
+
                     <div class="flex justify-between items-center group">
                         <span class="text-blue-300 font-medium group-hover:text-blue-200 transition flex items-center gap-2"><i class="fas fa-tint text-xs"></i> Water</span>
                         <div class="flex items-baseline gap-1">
@@ -226,12 +277,27 @@ TOOL_OVERVIEW_END
             hydration: 70,
             starterPct: 20,
             saltPct: 2,
-            smartMode: true
+            smartMode: true,
+            isBlendMode: false,
+            blend: {
+                white: 400,
+                wheat: 100,
+                rye: 0
+            }
         };
 
         // DOM Elements
         const els = {
             flourInput: document.getElementById('flourInput'),
+            singleContainer: document.getElementById('singleFlourContainer'),
+            blendContainer: document.getElementById('blendFlourContainer'),
+            blendInputs: document.querySelectorAll('.blend-input'),
+            blendTotal: document.getElementById('blendTotal'),
+            singleModeBtn: document.getElementById('singleModeBtn'),
+            blendModeBtn: document.getElementById('blendModeBtn'),
+            flourBreakdown: document.getElementById('flourBreakdown'),
+            flourTip: document.getElementById('flourTip'),
+            
             hydrationInput: document.getElementById('hydrationInput'),
             hydrationSlider: document.getElementById('hydrationSlider'),
             starterSlider: document.getElementById('starterSlider'),
@@ -251,7 +317,30 @@ TOOL_OVERVIEW_END
         };
 
         // Event Listeners
-        els.flourInput.addEventListener('input', (e) => updateState('flour', parseFloat(e.target.value) || 0));
+        els.flourInput.addEventListener('input', (e) => {
+            state.flour = parseFloat(e.target.value) || 0;
+            // Sync blend defaults to match total roughly
+            state.blend.white = state.flour;
+            state.blend.wheat = 0;
+            state.blend.rye = 0;
+            calculate();
+        });
+
+        // Blend inputs logic
+        els.blendInputs.forEach(input => {
+            input.addEventListener('input', () => {
+                const type = input.dataset.type;
+                state.blend[type] = parseFloat(input.value) || 0;
+                
+                // Update total flour based on sum of inputs
+                const sum = state.blend.white + state.blend.wheat + state.blend.rye;
+                state.flour = sum;
+                els.blendTotal.textContent = sum;
+                els.flourInput.value = sum; // Sync hidden single input
+                
+                calculate();
+            });
+        });
         
         // Hydration synced inputs
         els.hydrationSlider.addEventListener('input', (e) => {
@@ -298,6 +387,43 @@ TOOL_OVERVIEW_END
             els.settingsChevron.classList.toggle('rotate-180');
         }
 
+        function toggleFlourMode() {
+            state.isBlendMode = !state.isBlendMode;
+            
+            if (state.isBlendMode) {
+                // UI: Active Blend
+                els.blendModeBtn.classList.add('bg-white', 'shadow', 'text-amber-600');
+                els.blendModeBtn.classList.remove('text-stone-400');
+                els.singleModeBtn.classList.remove('bg-white', 'shadow', 'text-amber-600');
+                els.singleModeBtn.classList.add('text-stone-400');
+                
+                els.singleContainer.classList.add('hidden');
+                els.blendContainer.classList.remove('hidden');
+                els.flourBreakdown.classList.remove('hidden');
+                
+                // Sync blend inputs to current total if needed, or just let them stay
+                // We'll trigger a calc based on existing blend values
+                const sum = state.blend.white + state.blend.wheat + state.blend.rye;
+                els.blendTotal.textContent = sum;
+                state.flour = sum;
+            } else {
+                // UI: Active Single
+                els.singleModeBtn.classList.add('bg-white', 'shadow', 'text-amber-600');
+                els.singleModeBtn.classList.remove('text-stone-400');
+                els.blendModeBtn.classList.remove('bg-white', 'shadow', 'text-amber-600');
+                els.blendModeBtn.classList.add('text-stone-400');
+                
+                els.blendContainer.classList.add('hidden');
+                els.singleContainer.classList.remove('hidden');
+                els.flourBreakdown.classList.add('hidden');
+                els.flourTip.classList.add('hidden');
+                
+                // Sync single input to current blend total
+                els.flourInput.value = state.flour;
+            }
+            calculate();
+        }
+
         function updateState(key, value) {
             state[key] = value;
             calculate();
@@ -314,19 +440,12 @@ TOOL_OVERVIEW_END
             let waterWeight = 0;
 
             if (state.smartMode) {
-                // Smart Mode: Adjusts added water to hit target TOTAL hydration
-                // Assumptions: Starter is 100% hydration (50% water, 50% flour)
                 const starterFlour = starterWeight / 2;
                 const starterWater = starterWeight / 2;
-                
                 const totalFlour = flour + starterFlour;
                 const targetTotalWater = totalFlour * targetHydrationDec;
-                
-                // Water to add = Target Water - Water already in starter
                 waterWeight = Math.round(targetTotalWater - starterWater);
             } else {
-                // Simple Mode: Just simple baker's math (Water % of Base Flour)
-                // This ignores the starter's contribution to hydration
                 waterWeight = Math.round(flour * targetHydrationDec);
             }
 
@@ -336,22 +455,46 @@ TOOL_OVERVIEW_END
             els.resSalt.textContent = saltWeight;
             els.resWater.textContent = waterWeight;
             els.resTotal.textContent = flour + waterWeight + starterWeight + saltWeight;
+
+            // Blend Breakdown in Results
+            if(state.isBlendMode) {
+                els.flourBreakdown.innerHTML = `
+                    <div class="flex justify-between"><span>White/Bread:</span> <span>${state.blend.white}g</span></div>
+                    ${state.blend.wheat > 0 ? `<div class="flex justify-between"><span>Whole Wheat:</span> <span>${state.blend.wheat}g</span></div>` : ''}
+                    ${state.blend.rye > 0 ? `<div class="flex justify-between"><span>Rye/Other:</span> <span>${state.blend.rye}g</span></div>` : ''}
+                `;
+                
+                // Show thirsty tip if significant whole grains
+                const thirstyFlourPct = (state.blend.wheat + state.blend.rye) / flour;
+                if(thirstyFlourPct > 0.2) {
+                    els.flourTip.classList.remove('hidden');
+                    els.flourTip.innerHTML = `<i class="fas fa-lightbulb mt-0.5 text-amber-500"></i> <span>High whole grain content detected (${Math.round(thirstyFlourPct*100)}%). You might need to increase hydration by 2-5%.</span>`;
+                } else {
+                    els.flourTip.classList.add('hidden');
+                }
+            }
         }
 
         function copyRecipe() {
-            const text = `Sourdough Recipe (${state.hydration}% Hydration):\n` +
-                `- Flour: ${els.resFlour.textContent}g\n` +
-                `- Water: ${els.resWater.textContent}g\n` +
+            let text = `Sourdough Recipe (${state.hydration}% Hydration):\n`;
+            
+            if (state.isBlendMode) {
+                text += `- Bread Flour: ${state.blend.white}g\n`;
+                if(state.blend.wheat > 0) text += `- Whole Wheat: ${state.blend.wheat}g\n`;
+                if(state.blend.rye > 0) text += `- Rye/Other: ${state.blend.rye}g\n`;
+                text += `- Total Flour: ${state.flour}g\n`;
+            } else {
+                text += `- Flour: ${els.resFlour.textContent}g\n`;
+            }
+            
+            text += `- Water: ${els.resWater.textContent}g\n` +
                 `- Starter: ${els.resStarter.textContent}g\n` +
                 `- Salt: ${els.resSalt.textContent}g\n` +
                 `Total Weight: ${els.resTotal.textContent}g`;
             
-            // Clipboard API might be restricted in some iframes, using older execCommand as fallback if needed
-            // But we will try the modern one first, fallback to textarea hack
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).then(showToast);
             } else {
-                // Fallback
                 const textArea = document.createElement("textarea");
                 textArea.value = text;
                 document.body.appendChild(textArea);
