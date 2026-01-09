@@ -1,0 +1,361 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "Aspect Ratio Calculator",
+  "description": "A web-based tool that calculates width and height dimensions while preserving a specified aspect ratio. It features a visual preview, common presets, and a copy-to-clipboard function.",
+  "functionality": {
+    "dynamic_calculation": "Automatically updates width or height when the other is modified to maintain the aspect ratio.",
+    "visual_preview": "Renders a live visual representation of the aspect ratio using a responsive CSS box.",
+    "presets": "Includes quick-select buttons for common ratios like 16:9, 1:1, 4:3, and 21:9."
+  },
+  "dependencies": ["Tailwind CSS (CDN)", "Font Awesome (CDN)", "Google Fonts"],
+  "last_updated": "2026-01-09"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aspect Ratio Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+
+        /* Custom scrollbar for aesthetic feel */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c7c7c7; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8; 
+        }
+
+        .input-group:focus-within label {
+            color: #4f46e5;
+        }
+        
+        .input-group:focus-within i {
+            color: #4f46e5;
+        }
+
+        .input-field {
+            transition: all 0.2s ease;
+        }
+
+        .preview-pattern {
+            background-color: #ffffff;
+            background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col md:flex-row border border-gray-100">
+        
+        <!-- Left Panel: Controls -->
+        <div class="p-8 md:w-1/2 flex flex-col justify-center space-y-8 bg-white z-10">
+            
+            <div class="mb-2">
+                <h1 class="text-2xl font-bold text-gray-800 tracking-tight">Aspect Ratio Calculator</h1>
+                <p class="text-gray-500 text-sm mt-1">Calculate dimensions while maintaining proportions.</p>
+            </div>
+
+            <!-- Section 1: Original Dimensions -->
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-sm font-semibold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fas fa-ruler-combined text-indigo-500"></i> Original Ratio
+                    </h2>
+                    <span id="ratio-display" class="text-xs font-mono bg-indigo-50 text-indigo-600 px-2 py-1 rounded">16:9</span>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="input-group relative">
+                        <label class="block text-xs font-medium text-gray-500 mb-1 ml-1">Width</label>
+                        <div class="relative">
+                            <input type="number" id="baseW" value="1920" class="input-field w-full pl-3 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-gray-800 font-medium shadow-sm" placeholder="W">
+                            <span class="absolute right-3 top-2.5 text-gray-400 text-sm">px</span>
+                        </div>
+                    </div>
+                    <div class="input-group relative">
+                        <label class="block text-xs font-medium text-gray-500 mb-1 ml-1">Height</label>
+                        <div class="relative">
+                            <input type="number" id="baseH" value="1080" class="input-field w-full pl-3 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-gray-800 font-medium shadow-sm" placeholder="H">
+                            <span class="absolute right-3 top-2.5 text-gray-400 text-sm">px</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Quick Presets -->
+                <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    <button onclick="setBase(1920, 1080)" class="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full transition whitespace-nowrap">HD (16:9)</button>
+                    <button onclick="setBase(1080, 1080)" class="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full transition whitespace-nowrap">Square (1:1)</button>
+                    <button onclick="setBase(800, 600)" class="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full transition whitespace-nowrap">4:3</button>
+                    <button onclick="setBase(21, 9)" class="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full transition whitespace-nowrap">Cinema (21:9)</button>
+                </div>
+            </div>
+
+            <div class="relative flex items-center py-2">
+                <div class="flex-grow border-t border-gray-200"></div>
+                <span class="flex-shrink-0 mx-4 text-gray-300"><i class="fas fa-arrow-down"></i></span>
+                <div class="flex-grow border-t border-gray-200"></div>
+            </div>
+
+            <!-- Section 2: New Dimensions -->
+            <div class="space-y-4">
+                <h2 class="text-sm font-semibold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                    <i class="fas fa-compress-arrows-alt text-emerald-500"></i> New Dimensions
+                </h2>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="input-group relative">
+                        <label class="block text-xs font-medium text-gray-500 mb-1 ml-1">New Width</label>
+                        <div class="relative">
+                            <input type="number" id="newW" class="input-field w-full pl-3 pr-10 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900 font-bold shadow-sm" placeholder="Enter Width">
+                            <span class="absolute right-3 top-2.5 text-gray-400 text-sm">px</span>
+                        </div>
+                    </div>
+                    <div class="input-group relative">
+                        <label class="block text-xs font-medium text-gray-500 mb-1 ml-1">New Height</label>
+                        <div class="relative">
+                            <input type="number" id="newH" class="input-field w-full pl-3 pr-10 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900 font-bold shadow-sm" placeholder="Enter Height">
+                            <span class="absolute right-3 top-2.5 text-gray-400 text-sm">px</span>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 italic">Editing one updates the other automatically.</p>
+            </div>
+
+            <!-- Actions -->
+            <div class="pt-4 flex gap-3">
+                 <button onclick="reset()" class="flex-1 py-2.5 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition text-sm font-medium">Reset</button>
+                 <button onclick="copyResults()" class="flex-1 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition text-sm font-medium shadow-lg shadow-gray-200"><i class="far fa-copy mr-2"></i>Copy Dimensions</button>
+            </div>
+
+        </div>
+
+        <!-- Right Panel: Visualization -->
+        <div class="md:w-1/2 bg-gray-50 border-l border-gray-100 flex flex-col relative preview-pattern">
+            
+            <div class="absolute top-4 right-4 z-10">
+                <div class="bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-gray-200 text-xs font-medium text-gray-500" id="preview-label">
+                    Preview
+                </div>
+            </div>
+
+            <div class="flex-1 flex items-center justify-center p-8 overflow-hidden relative" id="canvas-container">
+                <!-- CSS Shape -->
+                <div id="visual-box" class="bg-indigo-500 shadow-2xl rounded-lg flex items-center justify-center transition-all duration-300 ease-out relative group">
+                     <!-- Dimensions Overlay -->
+                     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10 rounded-lg">
+                        <span class="text-white font-mono text-xs drop-shadow-md" id="visual-text"></span>
+                     </div>
+                     <!-- Decorative lines -->
+                     <div class="absolute -left-3 top-0 bottom-0 border-l border-gray-300 w-2 flex flex-col justify-center items-center">
+                        <span class="bg-gray-50 text-[10px] text-gray-400 -rotate-90 whitespace-nowrap px-1" id="height-marker">H</span>
+                     </div>
+                     <div class="absolute -bottom-3 left-0 right-0 border-b border-gray-300 h-2 flex justify-center items-center">
+                        <span class="bg-gray-50 text-[10px] text-gray-400 whitespace-nowrap px-1" id="width-marker">W</span>
+                     </div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-white border-t border-gray-100 text-center">
+                 <p class="text-xs text-gray-400">Visual representation is scaled to fit.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-gray-900 text-white px-4 py-2 rounded shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 text-sm flex items-center gap-2">
+        <i class="fas fa-check-circle text-emerald-400"></i>
+        <span>Copied to clipboard!</span>
+    </div>
+
+    <script>
+        // --- Elements ---
+        const baseWInput = document.getElementById('baseW');
+        const baseHInput = document.getElementById('baseH');
+        const newWInput = document.getElementById('newW');
+        const newHInput = document.getElementById('newH');
+        const ratioDisplay = document.getElementById('ratio-display');
+        const visualBox = document.getElementById('visual-box');
+        const visualText = document.getElementById('visual-text');
+        const widthMarker = document.getElementById('width-marker');
+        const heightMarker = document.getElementById('height-marker');
+        const container = document.getElementById('canvas-container');
+
+        // --- State ---
+        let aspectRatio = 16 / 9;
+
+        // --- Core Logic ---
+        
+        function updateRatio() {
+            const w = parseFloat(baseWInput.value);
+            const h = parseFloat(baseHInput.value);
+
+            if (w && h && h !== 0) {
+                aspectRatio = w / h;
+                
+                // Calculate greatest common divisor for pretty printing ratio (e.g. 16:9)
+                const gcd = (a, b) => b ? gcd(b, a % b) : a;
+                const common = gcd(w, h);
+                const ratioW = w / common;
+                const ratioH = h / common;
+                
+                // If it's a weird decimal, just show decimal, otherwise show fraction
+                if (ratioW > 100 || ratioH > 100) {
+                     ratioDisplay.textContent = aspectRatio.toFixed(3);
+                } else {
+                     ratioDisplay.textContent = `${ratioW}:${ratioH}`;
+                }
+
+                // If new dimensions are empty, fill them based on base
+                if (!newWInput.value && !newHInput.value) {
+                    // Do nothing, let user type
+                } else if (newWInput.value) {
+                    // Recalculate height based on new ratio
+                    updateFromWidth();
+                }
+                
+                updateVisual();
+            }
+        }
+
+        function updateFromWidth() {
+            const w = parseFloat(newWInput.value);
+            if (!isNaN(w)) {
+                const h = w / aspectRatio;
+                // Round to 2 decimal places max, usually pixels are integers but let's allow decimals
+                newHInput.value = Number.isInteger(h) ? h : h.toFixed(2);
+                updateVisual();
+            } else {
+                newHInput.value = '';
+            }
+        }
+
+        function updateFromHeight() {
+            const h = parseFloat(newHInput.value);
+            if (!isNaN(h)) {
+                const w = h * aspectRatio;
+                newWInput.value = Number.isInteger(w) ? w : w.toFixed(2);
+                updateVisual();
+            } else {
+                newWInput.value = '';
+            }
+        }
+
+        function updateVisual() {
+            // Determine dimensions for the visual box
+            // It needs to fit within the container (e.g. 300x300 max)
+            
+            const containerW = container.clientWidth - 80; // padding
+            const containerH = container.clientHeight - 80;
+
+            let visualW, visualH;
+
+            // Fit logic
+            if (containerW / containerH > aspectRatio) {
+                // Container is wider than the shape, so constrain by height
+                visualH = containerH;
+                visualW = visualH * aspectRatio;
+            } else {
+                // Container is taller/narrower, constrain by width
+                visualW = containerW;
+                visualH = visualW / aspectRatio;
+            }
+
+            visualBox.style.width = `${visualW}px`;
+            visualBox.style.height = `${visualH}px`;
+
+            // Update markers text
+            const cw = newWInput.value || baseWInput.value || 'W';
+            const ch = newHInput.value || baseHInput.value || 'H';
+            
+            widthMarker.textContent = cw;
+            heightMarker.textContent = ch;
+            visualText.textContent = `${cw} x ${ch}`;
+        }
+
+        function setBase(w, h) {
+            baseWInput.value = w;
+            baseHInput.value = h;
+            updateRatio();
+            
+            // Auto fill new dimensions to match initially for convenience, or clear?
+            // Let's clear to show it's a new start, or just trigger an update if value exists
+            if(newWInput.value) {
+                updateFromWidth();
+            } else {
+                newWInput.value = w;
+                newHInput.value = h;
+                updateFromWidth();
+            }
+        }
+
+        function reset() {
+            baseWInput.value = 1920;
+            baseHInput.value = 1080;
+            newWInput.value = '';
+            newHInput.value = '';
+            updateRatio();
+        }
+        
+        function copyResults() {
+            const w = newWInput.value;
+            const h = newHInput.value;
+            if(!w || !h) return;
+            
+            const text = `width: ${w}px; height: ${h}px;`;
+            
+            // Copy to clipboard
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+
+            // Show toast
+            const toast = document.getElementById('toast');
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2000);
+        }
+
+        // --- Event Listeners ---
+        baseWInput.addEventListener('input', updateRatio);
+        baseHInput.addEventListener('input', updateRatio);
+        
+        newWInput.addEventListener('input', updateFromWidth);
+        newHInput.addEventListener('input', updateFromHeight);
+
+        // Resize observer for responsiveness
+        const observer = new ResizeObserver(() => updateVisual());
+        observer.observe(container);
+
+        // Initial setup
+        updateRatio();
+        // Set initial New values for demo purposes
+        newWInput.value = 1920; 
+        updateFromWidth();
+
+    </script>
+</body>
+</html>
