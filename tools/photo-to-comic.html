@@ -254,17 +254,17 @@ TOOL_OVERVIEW_END
 
     <!-- Crop Modal -->
     <div id="crop-modal" class="fixed inset-0 z-50 hidden bg-black/80 flex justify-center items-center p-4">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] overflow-hidden">
             <div class="p-4 border-b border-gray-200 flex justify-between items-center">
                 <h3 class="font-bold text-gray-800">Crop Image</h3>
                 <button id="crop-cancel-top" class="text-gray-400 hover:text-gray-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            <div class="flex-grow bg-gray-900 p-12 relative overflow-hidden flex justify-center items-center">
+            <div class="h-[60vh] w-full bg-gray-900 relative">
                  <!-- Image wrapper for Cropper.js -->
-                 <div class="w-full h-full">
-                    <img id="crop-target-img" class="max-w-full block">
+                 <div class="w-full h-full flex justify-center items-center">
+                    <img id="crop-target-img" class="max-w-full max-h-full block">
                  </div>
             </div>
             <div class="p-4 border-t border-gray-200 flex justify-end gap-3 bg-gray-50 rounded-b-xl">
@@ -390,7 +390,7 @@ TOOL_OVERVIEW_END
                 currentCropper = new Cropper(cropTargetImg, {
                     viewMode: 1, // Restrict crop box to canvas
                     dragMode: 'move',
-                    autoCropArea: 0.9,
+                    autoCropArea: 1,
                     restore: false,
                     modal: true,
                     guides: true,
