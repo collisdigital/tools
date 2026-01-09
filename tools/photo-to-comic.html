@@ -9,7 +9,7 @@ TOOL_OVERVIEW_START
     "Fine-Grained Resolution": "Pixel-perfect input resizing control from 200px to 1200px.",
     "Main Thread": "Runs synchronously for maximum reliability."
   },
-  "dependencies": ["Tailwind CSS", "ImageTracer.js", "Highlight.js"],
+  "dependencies": ["Tailwind CSS", "ImageTracer.js", "Highlight.js", "Cropper.js"],
   "last_updated": "2025-12-30"
 }
 TOOL_OVERVIEW_END
@@ -26,6 +26,10 @@ TOOL_OVERVIEW_END
     
     <!-- Load ImageTracer.js -->
     <script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.min.js"></script>
+
+    <!-- Load Cropper.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
     <style>
         .code-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
@@ -74,15 +78,15 @@ TOOL_OVERVIEW_END
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
     <!-- Header -->
-    <header class="bg-white shadow-sm sticky top-0 z-20">
+    <header class="bg-slate-800 shadow-sm sticky top-0 z-20">
         <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
             <div class="flex items-center gap-2">
                 <div class="p-1.5 bg-purple-600 rounded text-white">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
                 </div>
-                <h1 class="text-lg font-bold text-gray-900">Vector Tool</h1>
+                <h1 class="text-lg font-bold text-white">Vector Tool</h1>
             </div>
-            <div class="text-xs font-mono text-gray-400">v5.0</div>
+            <div class="text-xs font-mono text-gray-400">v5.1</div>
         </div>
     </header>
 
@@ -105,7 +109,13 @@ TOOL_OVERVIEW_END
                     </div>
                     <!-- Source Preview -->
                     <div id="source-preview-container" class="mt-4 hidden bg-gray-50 p-2 rounded-lg border border-gray-200">
-                        <p class="text-xs text-gray-500 mb-2">Source Preview:</p>
+                        <div class="flex justify-between items-center mb-2">
+                            <p class="text-xs text-gray-500">Source Preview:</p>
+                            <button id="crop-btn" class="text-xs flex items-center gap-1 bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 px-2 py-1 rounded transition shadow-sm">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                <span>Crop / Edit</span>
+                            </button>
+                        </div>
                         <img id="source-preview-img" class="max-w-full max-h-60 h-auto object-contain mx-auto rounded">
                     </div>
                 </div>
@@ -242,6 +252,28 @@ TOOL_OVERVIEW_END
     <!-- Hidden Canvas -->
     <canvas id="resize-canvas" class="hidden"></canvas>
 
+    <!-- Crop Modal -->
+    <div id="crop-modal" class="fixed inset-0 z-50 hidden bg-black/80 flex justify-center items-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="font-bold text-gray-800">Crop Image</h3>
+                <button id="crop-cancel-top" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="flex-grow bg-gray-900 p-4 relative overflow-hidden flex justify-center items-center">
+                 <!-- Image wrapper for Cropper.js -->
+                 <div class="w-full h-full">
+                    <img id="crop-target-img" class="max-w-full block">
+                 </div>
+            </div>
+            <div class="p-4 border-t border-gray-200 flex justify-end gap-3 bg-gray-50 rounded-b-xl">
+                <button id="crop-cancel-btn" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
+                <button id="crop-apply-btn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium shadow-sm">Apply Crop</button>
+            </div>
+        </div>
+    </div>
+
     <script type="text/javascript">
         // --- UI Elements ---
         const convertBtn = document.getElementById('convert-btn');
@@ -258,6 +290,14 @@ TOOL_OVERVIEW_END
         const resizeCanvas = document.getElementById('resize-canvas');
         const freezeWarning = document.getElementById('freeze-warning');
 
+        // Crop UI
+        const cropBtn = document.getElementById('crop-btn');
+        const cropModal = document.getElementById('crop-modal');
+        const cropTargetImg = document.getElementById('crop-target-img');
+        const cropApplyBtn = document.getElementById('crop-apply-btn');
+        const cropCancelBtn = document.getElementById('crop-cancel-btn');
+        const cropCancelTop = document.getElementById('crop-cancel-top');
+
         // Inputs
         const inputColors = document.getElementById('input-colors');
         const inputRes = document.getElementById('input-res');
@@ -271,6 +311,9 @@ TOOL_OVERVIEW_END
         // State
         let rawSvgState = '';
         let autoColorState = '#ffffff';
+        let originalImageURL = null; // Stores the raw file data
+        let currentCropper = null;   // Stores the cropper instance
+        let savedCropData = null;    // Stores the crop box data
 
         const valColors = document.getElementById('val-colors');
         const valRes = document.getElementById('val-res');
@@ -314,8 +357,15 @@ TOOL_OVERVIEW_END
             const file = e.target.files[0];
             const reader = new FileReader();
             reader.onload = function(event) {
-                sourcePreviewImg.src = event.target.result;
+                // Save original
+                originalImageURL = event.target.result;
+                // Reset crop data
+                savedCropData = null;
+
+                // Show in preview
+                sourcePreviewImg.src = originalImageURL;
                 sourcePreviewContainer.classList.remove('hidden');
+
                 sourcePreviewImg.onload = () => {
                      log(`Image loaded: ${sourcePreviewImg.naturalWidth}x${sourcePreviewImg.naturalHeight}`);
                      convertBtn.disabled = false;
@@ -324,6 +374,70 @@ TOOL_OVERVIEW_END
             };
             reader.readAsDataURL(file);
         });
+
+        // --- Crop Logic ---
+
+        function openCropModal() {
+            if (!originalImageURL) return;
+
+            cropTargetImg.src = originalImageURL;
+            cropModal.classList.remove('hidden');
+
+            // Wait for modal transition/render before init cropper
+            setTimeout(() => {
+                if (currentCropper) currentCropper.destroy();
+
+                currentCropper = new Cropper(cropTargetImg, {
+                    viewMode: 1, // Restrict crop box to canvas
+                    dragMode: 'move',
+                    autoCropArea: 0.9,
+                    restore: false,
+                    modal: true,
+                    guides: true,
+                    highlight: true,
+                    cropBoxMovable: true,
+                    cropBoxResizable: true,
+                    toggleDragModeOnDblclick: false,
+                    ready() {
+                         if (savedCropData) {
+                             currentCropper.setData(savedCropData);
+                         }
+                    }
+                });
+            }, 50);
+        }
+
+        function closeCropModal() {
+            cropModal.classList.add('hidden');
+            if (currentCropper) {
+                currentCropper.destroy();
+                currentCropper = null;
+            }
+        }
+
+        cropBtn.addEventListener('click', openCropModal);
+
+        cropCancelBtn.addEventListener('click', closeCropModal);
+        cropCancelTop.addEventListener('click', closeCropModal);
+
+        cropApplyBtn.addEventListener('click', () => {
+            if (!currentCropper) return;
+
+            // Save state
+            savedCropData = currentCropper.getData();
+
+            // Get Result
+            const canvas = currentCropper.getCroppedCanvas();
+
+            // Update Preview
+            sourcePreviewImg.src = canvas.toDataURL();
+            log("Image cropped. Preview updated.");
+
+            closeCropModal();
+        });
+
+
+        // --- Conversion Logic ---
 
         convertBtn.addEventListener('click', () => {
             convertBtn.disabled = true;
@@ -557,5 +671,3 @@ TOOL_OVERVIEW_END
     </script>
 </body>
 </html>
-
-
