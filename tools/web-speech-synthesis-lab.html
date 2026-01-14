@@ -1,0 +1,351 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "Speech Synthesis Lab",
+  "description": "A comprehensive playground for the Web Speech API's SpeechSynthesis interface, enabling users to experiment with system voices, speech rate, and pitch in real-time.",
+  "functionality": {
+    "voice_selection": "Browse and filter available system voices with detailed metadata.",
+    "speech_controls": "Adjustable sliders for rate, pitch, and volume with live value feedback.",
+    "word_tracking": "Visual feedback of the currently spoken word using the onboundary event listener.",
+    "auto_play": "An optional setting to trigger speech immediately upon changing the selected voice."
+  },
+  "dependencies": ["Tailwind CSS (CDN)", "Google Fonts (Inter)"],
+  "last_updated": "2026-01-14"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Speech API Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #3b82f6;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+
+        .voice-card {
+            transition: all 0.2s ease;
+        }
+
+        .speaking-pulse {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="min-h-screen py-8 px-4 sm:px-6 lg:px-8 text-slate-900">
+
+    <div class="max-w-4xl mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl mb-2">
+                SpeechSynthesis <span class="text-blue-600">Lab</span>
+            </h1>
+            <p class="text-slate-500 text-lg">Experiment with the Web Speech API voices, pitch, and rate.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <!-- Sidebar: Controls -->
+            <div class="md:col-span-1 space-y-6">
+                <section class="glass-panel p-6 rounded-2xl shadow-sm">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">Voice Settings</h2>
+                    
+                    <!-- Rate -->
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-sm font-semibold text-slate-700">Rate</label>
+                            <span id="rate-val" class="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">1.0</span>
+                        </div>
+                        <input type="range" id="rate" min="0.1" max="10" step="0.1" value="1" 
+                               class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                    </div>
+
+                    <!-- Pitch -->
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-sm font-semibold text-slate-700">Pitch</label>
+                            <span id="pitch-val" class="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">1.0</span>
+                        </div>
+                        <input type="range" id="pitch" min="0" max="2" step="0.1" value="1" 
+                               class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                    </div>
+
+                    <!-- Volume -->
+                    <div class="mb-2">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-sm font-semibold text-slate-700">Volume</label>
+                            <span id="volume-val" class="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">1.0</span>
+                        </div>
+                        <input type="range" id="volume" min="0" max="1" step="0.1" value="1" 
+                               class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                    </div>
+                </section>
+
+                <section id="status-panel" class="glass-panel p-6 rounded-2xl shadow-sm border-l-4 border-slate-300 transition-colors">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">API Status</h2>
+                    <div id="status-text" class="text-sm font-medium text-slate-600 italic">Idle</div>
+                    <div id="current-word" class="mt-4 text-2xl font-bold text-blue-600 break-words hidden"></div>
+                </section>
+            </div>
+
+            <!-- Main Content: Input and Voice List -->
+            <div class="md:col-span-2 space-y-6">
+                <!-- Text Input -->
+                <section class="glass-panel p-6 rounded-2xl shadow-sm">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">Synthesis Input</h2>
+                    <textarea id="text-input" rows="4" 
+                        class="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-none text-slate-700 leading-relaxed"
+                        placeholder="Type something here for the AI to speak...">Hello! I am the Web Speech API. You can change my pitch, speed, and voice from the menu below. How do I sound?</textarea>
+                    
+                    <div class="grid grid-cols-2 gap-3 mt-4">
+                        <button id="speak-btn" class="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-95">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                            Speak
+                        </button>
+                        <button id="stop-btn" class="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-6 rounded-xl transition-all active:scale-95">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>
+                            Cancel
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Voice Selection -->
+                <section class="glass-panel p-6 rounded-2xl shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Available Voices</h2>
+                        <span id="voice-count" class="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded-full font-bold">0 Found</span>
+                    </div>
+                    
+                    <div class="flex flex-col sm:flex-row gap-4 mb-4">
+                        <div class="relative flex-grow">
+                            <input type="text" id="voice-search" placeholder="Search voices (name, lang)..." 
+                                   class="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                            <svg class="absolute left-3 top-2.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        </div>
+                        <div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                            <input type="checkbox" id="auto-play" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-slate-300">
+                            <label for="auto-play" class="text-sm font-medium text-slate-600 whitespace-nowrap cursor-pointer select-none">Auto-play</label>
+                        </div>
+                    </div>
+
+                    <div id="voices-list" class="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div class="p-8 text-center text-slate-400 italic">
+                            Waiting for voices to load...
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+        
+        <footer class="mt-12 text-center text-slate-400 text-sm">
+            Powered by the native Web Speech API Synthesis interface.
+        </footer>
+    </div>
+
+    <!-- Feedback Message Box -->
+    <div id="message-box" class="fixed bottom-6 right-6 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+            <span id="message-text"></span>
+        </div>
+    </div>
+
+    <script>
+        const synth = window.speechSynthesis;
+        const voicesList = document.getElementById('voices-list');
+        const voiceSearch = document.getElementById('voice-search');
+        const autoPlayCheckbox = document.getElementById('auto-play');
+        const speakBtn = document.getElementById('speak-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const textInput = document.getElementById('text-input');
+        const rateInput = document.getElementById('rate');
+        const pitchInput = document.getElementById('pitch');
+        const volumeInput = document.getElementById('volume');
+        const statusPanel = document.getElementById('status-panel');
+        const statusText = document.getElementById('status-text');
+        const currentWordDisplay = document.getElementById('current-word');
+        
+        let voices = [];
+        let selectedVoiceName = '';
+
+        // Initialize voices
+        function populateVoices() {
+            voices = synth.getVoices();
+            document.getElementById('voice-count').textContent = `${voices.length} Found`;
+            renderVoices();
+        }
+
+        // Render voices based on search
+        function renderVoices() {
+            const searchTerm = voiceSearch.value.toLowerCase();
+            const filtered = voices.filter(v => 
+                v.name.toLowerCase().includes(searchTerm) || 
+                v.lang.toLowerCase().includes(searchTerm)
+            );
+
+            if (filtered.length === 0) {
+                voicesList.innerHTML = `<div class="p-4 text-center text-slate-400">No voices matching your search</div>`;
+                return;
+            }
+
+            voicesList.innerHTML = filtered.map(voice => {
+                const isSelected = voice.name === selectedVoiceName || (!selectedVoiceName && voice.default);
+                if (isSelected && !selectedVoiceName) selectedVoiceName = voice.name;
+
+                return `
+                    <div onclick="selectVoice('${voice.name.replace(/'/g, "\\'")}')" 
+                         class="voice-card p-4 rounded-xl cursor-pointer border-2 transition-all ${isSelected ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' : 'border-transparent bg-white hover:bg-slate-50 shadow-sm'}">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="font-bold text-slate-800 text-sm">${voice.name}</h3>
+                                <p class="text-xs text-slate-500 mt-1 uppercase tracking-tight font-medium">${voice.lang} ${voice.default ? '• Default' : ''}</p>
+                            </div>
+                            <span class="text-[10px] px-2 py-1 rounded bg-slate-100 text-slate-500 font-mono">
+                                ${voice.localService ? 'Local' : 'Network'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectVoice(name) {
+            selectedVoiceName = name;
+            renderVoices();
+            
+            if (autoPlayCheckbox.checked) {
+                speak();
+            } else {
+                showMessage(`Selected: ${name}`);
+            }
+        }
+
+        // Speech Logic
+        function speak() {
+            if (synth.speaking) {
+                synth.cancel();
+            }
+
+            if (textInput.value.trim() === '') {
+                showMessage('Please enter some text.');
+                return;
+            }
+
+            const utterThis = new SpeechSynthesisUtterance(textInput.value);
+            
+            const voice = voices.find(v => v.name === selectedVoiceName);
+            if (voice) utterThis.voice = voice;
+            
+            utterThis.rate = rateInput.value;
+            utterThis.pitch = pitchInput.value;
+            utterThis.volume = volumeInput.value;
+
+            utterThis.onstart = () => {
+                statusPanel.classList.replace('border-slate-300', 'border-blue-500');
+                statusPanel.classList.add('speaking-pulse');
+                statusText.textContent = 'Speaking...';
+                currentWordDisplay.classList.remove('hidden');
+                speakBtn.disabled = true;
+                speakBtn.classList.add('opacity-50');
+            };
+
+            utterThis.onend = () => {
+                statusPanel.classList.replace('border-blue-500', 'border-slate-300');
+                statusPanel.classList.remove('speaking-pulse');
+                statusText.textContent = 'Finished';
+                currentWordDisplay.classList.add('hidden');
+                speakBtn.disabled = false;
+                speakBtn.classList.remove('opacity-50');
+            };
+
+            utterThis.onerror = (event) => {
+                statusText.textContent = 'Error occurred';
+                speakBtn.disabled = false;
+                speakBtn.classList.remove('opacity-50');
+            };
+
+            utterThis.onboundary = (event) => {
+                if (event.name === 'word') {
+                    const word = textInput.value.substr(event.charIndex, event.charLength);
+                    currentWordDisplay.textContent = word;
+                }
+            };
+
+            synth.speak(utterThis);
+        }
+
+        function stop() {
+            synth.cancel();
+            statusText.textContent = 'Cancelled';
+            currentWordDisplay.classList.add('hidden');
+            speakBtn.disabled = false;
+            speakBtn.classList.remove('opacity-50');
+        }
+
+        function showMessage(text) {
+            const box = document.getElementById('message-box');
+            document.getElementById('message-text').textContent = text;
+            box.classList.remove('translate-y-20', 'opacity-0');
+            
+            setTimeout(() => {
+                box.classList.add('translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+
+        // Input listeners
+        rateInput.oninput = () => document.getElementById('rate-val').textContent = rateInput.value;
+        pitchInput.oninput = () => document.getElementById('pitch-val').textContent = pitchInput.value;
+        volumeInput.oninput = () => document.getElementById('volume-val').textContent = volumeInput.value;
+        voiceSearch.oninput = () => renderVoices();
+
+        speakBtn.addEventListener('click', speak);
+        stopBtn.addEventListener('click', stop);
+
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = populateVoices;
+        }
+
+        window.onload = populateVoices;
+
+    </script>
+</body>
+</html>
