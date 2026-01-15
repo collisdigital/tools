@@ -355,10 +355,6 @@ TOOL_OVERVIEW_END
                 option.textContent = `${voices[i].name} (${voices[i].lang})`;
                 option.value = voices[i].name;
 
-                if (voices[i].default) {
-                    option.textContent += ' -- DEFAULT';
-                }
-
                 voiceSelect.appendChild(option);
             }
 
