@@ -181,8 +181,32 @@ TOOL_OVERVIEW_END
         </div>
 
         <!-- Footer -->
-        <footer class="mt-16 text-center font-bold text-gray-700 pb-10">
+        <footer class="mt-16 text-center font-bold text-gray-700 pb-10 flex flex-col items-center gap-2">
             <p>Get the hell out of my office!</p>
+
+            <!-- Hack Me Link -->
+            <div class="mt-4">
+                <span id="hack-trigger" class="text-xs text-gray-400 hover:text-red-500 cursor-pointer underline transition-colors duration-200">Hack me!</span>
+            </div>
+
+            <!-- Settings Panel -->
+            <div id="hack-panel" class="hidden mt-4 bg-white p-4 rounded-lg border-2 border-black comic-shadow w-full max-w-sm text-left">
+                <div class="flex flex-col gap-4">
+                    <div>
+                        <label class="block text-sm font-bold mb-1">Voice</label>
+                        <select id="voice-select" class="w-full border-2 border-black rounded p-2 font-sans text-sm bg-gray-50"></select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold mb-1">Phrase</label>
+                        <input type="text" id="text-input" value="Goddamn!" class="w-full border-2 border-black rounded p-2 font-sans text-sm bg-gray-50">
+                    </div>
+
+                    <button id="reset-btn" class="bg-red-500 text-white font-bold py-2 px-4 rounded border-2 border-black hover:bg-red-600 transition-colors shadow-[2px_2px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:shadow-none">
+                        Reset to Default
+                    </button>
+                </div>
+            </div>
         </footer>
     </main>
 
@@ -233,6 +257,17 @@ TOOL_OVERVIEW_END
         const board = document.getElementById('board');
         const synth = window.speechSynthesis;
 
+        // Settings Elements
+        const hackTrigger = document.getElementById('hack-trigger');
+        const hackPanel = document.getElementById('hack-panel');
+        const voiceSelect = document.getElementById('voice-select');
+        const textInput = document.getElementById('text-input');
+        const resetBtn = document.getElementById('reset-btn');
+
+        // State
+        let customVoiceName = localStorage.getItem('goddamn-voice');
+        let customTextPhrase = localStorage.getItem('goddamn-text');
+
         // Counter Logic
         let goddamnCount = 0;
         const counterElement = document.getElementById('goddamn-counter');
@@ -254,6 +289,95 @@ TOOL_OVERVIEW_END
 
                 card.addEventListener('click', () => playSound(char, card));
                 board.appendChild(card);
+            });
+        }
+
+        function populateVoiceList() {
+            if (typeof synth === 'undefined') return;
+
+            const voices = synth.getVoices().sort((a, b) => {
+                const aname = a.name.toUpperCase();
+                const bname = b.name.toUpperCase();
+                if (aname < bname) return -1;
+                else if (aname == bname) return 0;
+                return +1;
+            });
+
+            voiceSelect.innerHTML = '';
+
+            // Add default option
+            const defaultOption = document.createElement('option');
+            defaultOption.textContent = 'Default (Auto-detect)';
+            defaultOption.value = '';
+            voiceSelect.appendChild(defaultOption);
+
+            for (let i = 0; i < voices.length; i++) {
+                const option = document.createElement('option');
+                option.textContent = `${voices[i].name} (${voices[i].lang})`;
+                option.value = voices[i].name;
+
+                if (voices[i].default) {
+                    option.textContent += ' -- DEFAULT';
+                }
+
+                if (customVoiceName === voices[i].name) {
+                    option.selected = true;
+                }
+
+                voiceSelect.appendChild(option);
+            }
+        }
+
+        function setupSettings() {
+            // Restore text
+            if (customTextPhrase) {
+                textInput.value = customTextPhrase;
+            }
+
+            // Toggle Panel
+            hackTrigger.addEventListener('click', () => {
+                hackPanel.classList.toggle('hidden');
+            });
+
+            // Voice Change
+            voiceSelect.addEventListener('change', () => {
+                const selected = voiceSelect.value;
+                if (selected) {
+                    customVoiceName = selected;
+                    localStorage.setItem('goddamn-voice', selected);
+
+                    // Preview
+                    if (synth.speaking) synth.cancel();
+                    const text = customTextPhrase || "God damn!";
+                    const utterThis = new SpeechSynthesisUtterance(text);
+                    const voice = synth.getVoices().find(v => v.name === selected);
+                    if (voice) utterThis.voice = voice;
+                    synth.speak(utterThis);
+                } else {
+                    customVoiceName = null;
+                    localStorage.removeItem('goddamn-voice');
+                }
+            });
+
+            // Text Change
+            textInput.addEventListener('input', () => {
+                const val = textInput.value;
+                customTextPhrase = val;
+                localStorage.setItem('goddamn-text', val);
+            });
+
+            // Reset
+            resetBtn.addEventListener('click', () => {
+                localStorage.removeItem('goddamn-voice');
+                localStorage.removeItem('goddamn-text');
+                customVoiceName = null;
+                customTextPhrase = null;
+
+                textInput.value = "Goddamn!";
+                voiceSelect.value = '';
+
+                // Close panel if you want, but user might want to verify reset
+                // hackPanel.classList.add('hidden');
             });
         }
 
@@ -280,16 +404,29 @@ TOOL_OVERVIEW_END
                 synth.cancel(); 
             }
 
-            const utterThis = new SpeechSynthesisUtterance("God damn!");
+            // Determine text to speak
+            const textToSpeak = customTextPhrase || "God damn!";
+            const utterThis = new SpeechSynthesisUtterance(textToSpeak);
+
+            // Keep pitch/rate from character
             utterThis.pitch = char.pitch;
             utterThis.rate = char.rate;
             utterThis.volume = 1;
 
             const voices = synth.getVoices();
-            // Try to find a good English voice
-            const preferredVoice = voices.find(v => v.name.includes("Google US English")) || 
-                                   voices.find(v => v.lang === "en-US") || 
-                                   voices.find(v => v.lang.startsWith("en"));
+            let preferredVoice;
+
+            // Voice selection logic
+            if (customVoiceName) {
+                preferredVoice = voices.find(v => v.name === customVoiceName);
+            }
+
+            // Fallback / Default logic
+            if (!preferredVoice) {
+                preferredVoice = voices.find(v => v.name.includes("Google US English")) ||
+                                 voices.find(v => v.lang === "en-US") ||
+                                 voices.find(v => v.lang.startsWith("en"));
+            }
             
             if (preferredVoice) utterThis.voice = preferredVoice;
 
@@ -299,9 +436,12 @@ TOOL_OVERVIEW_END
         // Init
         window.onload = () => {
             createBoard();
-            // Pre-load voices fix for Chrome
+            setupSettings();
+
+            // Populate voices
+            populateVoiceList();
             if (speechSynthesis.onvoiceschanged !== undefined) {
-                speechSynthesis.onvoiceschanged = () => {};
+                speechSynthesis.onvoiceschanged = populateVoiceList;
             }
         };
     </script>
