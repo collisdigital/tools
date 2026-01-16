@@ -1,0 +1,269 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "Sourdough Pro Tracker",
+  "description": "A specialized timer and progress tracker for sourdough baking that monitors the dough lifecycle and persists data across sessions.",
+  "functionality": {
+    "active_stage_monitor": "Displays the current active stage and its specific running time at the top of the app.",
+    "stage_tracking": "Logs timestamps for each sourdough production phase including autolyse and bulk fermentation.",
+    "duration_calculation": "Automatically calculates time elapsed between stages and total process time.",
+    "stretch_fold_counter": "Integrated counter for tracking the number of stretch and fold sets performed.",
+    "persistence": "Uses local browser storage to prevent data loss during the long fermentation process."
+  },
+  "dependencies": ["Tailwind CSS", "Google Fonts (Inter)"],
+  "last_updated": "2024-05-24"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sourdough Pro Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .stage-active { border-color: #f59e0b; background-color: #fffbeb; }
+        .stage-completed { border-color: #10b981; background-color: #f0fdf4; }
+    </style>
+</head>
+<body class="bg-stone-50 min-h-screen text-stone-800 p-4 pb-12">
+
+    <div class="max-w-md mx-auto">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8 pt-4">
+            <div>
+                <h1 class="text-2xl font-bold text-stone-900">🥖 Sourdough Pro</h1>
+                <p class="text-sm text-stone-500">Track your dough lifecycle</p>
+            </div>
+            <button onclick="resetAll()" class="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-red-100 transition-colors">
+                Reset
+            </button>
+        </header>
+
+        <!-- Main Dashboard Card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden mb-6">
+            <!-- Total Timer Section -->
+            <div class="p-6 text-center border-b border-stone-100">
+                <span class="text-xs font-bold uppercase tracking-wider text-stone-400">Total Process Time</span>
+                <div id="total-clock" class="text-5xl font-mono font-bold text-stone-800 mt-1">00:00:00</div>
+            </div>
+            
+            <!-- Active Stage Section -->
+            <div id="active-stage-card" class="bg-amber-50/50 p-4 flex flex-col items-center justify-center transition-all">
+                <span id="active-label" class="text-[10px] font-bold uppercase tracking-widest text-amber-600">Active Stage</span>
+                <div id="active-name" class="text-lg font-bold text-stone-800">Waiting to start...</div>
+                <div id="active-duration" class="text-2xl font-mono font-semibold text-amber-700">00:00:00</div>
+            </div>
+        </div>
+
+        <!-- Stages List -->
+        <div id="stages-container" class="space-y-3">
+            <!-- Stages will be injected here -->
+        </div>
+
+        <!-- Helpful Tip -->
+        <footer class="mt-8 text-center text-xs text-stone-400">
+            Progress is saved automatically to your browser.
+        </footer>
+    </div>
+
+    <!-- UI Modal for Reset Confirmation (Avoiding alert) -->
+    <div id="reset-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl p-6 max-w-xs w-full shadow-xl">
+            <h3 class="text-lg font-bold mb-2">Reset Tracker?</h3>
+            <p class="text-stone-500 text-sm mb-6">This will clear all timestamps and counters for the current loaf.</p>
+            <div class="flex gap-3">
+                <button onclick="closeResetModal()" class="flex-1 py-2 text-stone-600 font-semibold">Cancel</button>
+                <button onclick="confirmReset()" class="flex-1 py-2 bg-red-600 text-white rounded-lg font-semibold">Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STAGES_CONFIG = [
+            { id: 'feed', name: 'Feed Starter', icon: '🍶' },
+            { id: 'autolyse', name: 'Autolyse', icon: '🥣' },
+            { id: 'folds', name: 'Stretch & Fold', icon: '🤲', hasCounter: true },
+            { id: 'bulk', name: 'Bulk Ferment', icon: '🌋' },
+            { id: 'cold', name: 'Cold Retard', icon: '❄️' },
+            { id: 'bake', name: 'Bake', icon: '🔥' }
+        ];
+
+        let state = {
+            startTime: null,
+            stages: {} // keyed by stage id: { completed: bool, timestamp: null, folds: 0 }
+        };
+
+        // Load data from LocalStorage
+        function loadData() {
+            const saved = localStorage.getItem('sourdough_tracker_state');
+            if (saved) {
+                state = JSON.parse(saved);
+            } else {
+                initNewState();
+            }
+        }
+
+        function initNewState() {
+            state.startTime = null;
+            STAGES_CONFIG.forEach(s => {
+                state.stages[s.id] = { completed: false, timestamp: null, folds: 0 };
+            });
+        }
+
+        function saveData() {
+            localStorage.setItem('sourdough_tracker_state', JSON.stringify(state));
+        }
+
+        function formatDuration(ms) {
+            if (!ms || ms < 0) return "00:00:00";
+            const totalSeconds = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
+        }
+
+        function toggleStage(id) {
+            const stage = state.stages[id];
+            
+            if (!state.startTime) {
+                state.startTime = Date.now();
+            }
+
+            stage.completed = !stage.completed;
+            stage.timestamp = stage.completed ? Date.now() : null;
+
+            saveData();
+            render();
+        }
+
+        function adjustFolds(id, amount, event) {
+            event.stopPropagation();
+            state.stages[id].folds = Math.max(0, (state.stages[id].folds || 0) + amount);
+            saveData();
+            render();
+        }
+
+        function render() {
+            const container = document.getElementById('stages-container');
+            container.innerHTML = '';
+
+            STAGES_CONFIG.forEach((config, index) => {
+                const stageData = state.stages[config.id];
+                const prevStageConfig = STAGES_CONFIG[index - 1];
+                const prevStageData = prevStageConfig ? state.stages[prevStageConfig.id] : null;
+
+                let durationText = "";
+                if (stageData.completed && stageData.timestamp) {
+                    const startRef = index === 0 ? state.startTime : prevStageData?.timestamp;
+                    if (startRef) {
+                        durationText = `Took ${formatDuration(stageData.timestamp - startRef)}`;
+                    }
+                }
+
+                const card = document.createElement('div');
+                card.onclick = () => toggleStage(config.id);
+                card.className = `
+                    relative bg-white border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 
+                    ${stageData.completed ? 'stage-completed shadow-sm opacity-60' : 'border-stone-200 hover:border-stone-300'}
+                `;
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="text-2xl">${config.icon}</div>
+                            <div>
+                                <h4 class="font-bold ${stageData.completed ? 'text-green-800' : 'text-stone-700'}">${config.name}</h4>
+                                <p class="text-[10px] uppercase font-bold text-stone-400">
+                                    ${stageData.timestamp ? new Date(stageData.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Pending'}
+                                    ${durationText ? ' • ' + durationText : ''}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center gap-3">
+                            ${config.hasCounter && stageData.completed ? `
+                                <div class="flex items-center bg-stone-100 rounded-lg p-1" onclick="event.stopPropagation()">
+                                    <button onclick="adjustFolds('${config.id}', -1, event)" class="w-8 h-8 flex items-center justify-center hover:bg-white rounded shadow-sm">-</button>
+                                    <span class="px-3 font-mono font-bold text-sm">${stageData.folds}</span>
+                                    <button onclick="adjustFolds('${config.id}', 1, event)" class="w-8 h-8 flex items-center justify-center hover:bg-white rounded shadow-sm">+</button>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center ${stageData.completed ? 'bg-green-500 border-green-500' : 'border-stone-300'}">
+                                ${stageData.completed ? '<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function resetAll() {
+            document.getElementById('reset-modal').classList.remove('hidden');
+            document.getElementById('reset-modal').classList.add('flex');
+        }
+
+        function closeResetModal() {
+            document.getElementById('reset-modal').classList.add('hidden');
+            document.getElementById('reset-modal').classList.remove('flex');
+        }
+
+        function confirmReset() {
+            initNewState();
+            saveData();
+            render();
+            closeResetModal();
+        }
+
+        // Live Clock Tick
+        setInterval(() => {
+            const clockEl = document.getElementById('total-clock');
+            const activeNameEl = document.getElementById('active-name');
+            const activeDurEl = document.getElementById('active-duration');
+            const activeLabelEl = document.getElementById('active-label');
+
+            if (state.startTime) {
+                // Update Total Time
+                const now = Date.now();
+                const totalElapsed = now - state.startTime;
+                clockEl.innerText = formatDuration(totalElapsed);
+
+                // Find Active Stage
+                let activeIdx = STAGES_CONFIG.findIndex(s => !state.stages[s.id].completed);
+                
+                if (activeIdx === -1) {
+                    // All stages complete
+                    activeNameEl.innerText = "Process Complete 🥖";
+                    activeDurEl.innerText = "--:--:--";
+                    activeLabelEl.innerText = "Summary";
+                } else {
+                    const activeStageConfig = STAGES_CONFIG[activeIdx];
+                    const prevStageConfig = STAGES_CONFIG[activeIdx - 1];
+                    const stageStartTime = prevStageConfig ? state.stages[prevStageConfig.id].timestamp : state.startTime;
+                    
+                    activeNameEl.innerText = activeStageConfig.icon + " " + activeStageConfig.name;
+                    activeDurEl.innerText = formatDuration(now - stageStartTime);
+                    activeLabelEl.innerText = "Active Stage";
+                }
+            } else {
+                clockEl.innerText = "00:00:00";
+                activeNameEl.innerText = "Waiting to start...";
+                activeDurEl.innerText = "00:00:00";
+                activeLabelEl.innerText = "Ready";
+            }
+        }, 1000);
+
+        // Initial Load
+        window.onload = () => {
+            loadData();
+            render();
+        };
+    </script>
+</body>
+</html>
