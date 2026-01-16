@@ -6,9 +6,10 @@ TOOL_OVERVIEW_START
   "functionality": {
     "active_stage_monitor": "Displays the current active stage and its specific running time at the top of the app.",
     "stage_tracking": "Logs timestamps for each sourdough production phase including autolyse and bulk fermentation.",
-    "duration_calculation": "Automatically calculates time elapsed between stages and total process time.",
-    "stretch_fold_counter": "Integrated counter for tracking the number of stretch and fold sets performed.",
-    "persistence": "Uses local browser storage to prevent data loss during the long fermentation process."
+    "start_time_tracking": "Uses the 'Feed Starter' stage as the master anchor to record the start date and time.",
+    "contextual_counters": "The Stretch & Fold counter appears dynamically when the user is currently in that specific stage.",
+    "persistence": "Uses local browser storage to prevent data loss during the long fermentation process.",
+    "completion_logic": "Freezes the total process timer once the final 'Cooling' stage is completed."
   },
   "dependencies": ["Tailwind CSS", "Google Fonts (Inter)"],
   "last_updated": "2024-05-24"
@@ -70,7 +71,7 @@ TOOL_OVERVIEW_END
         </footer>
     </div>
 
-    <!-- UI Modal for Reset Confirmation (Avoiding alert) -->
+    <!-- UI Modal for Reset Confirmation -->
     <div id="reset-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-xl p-6 max-w-xs w-full shadow-xl">
             <h3 class="text-lg font-bold mb-2">Reset Tracker?</h3>
@@ -84,20 +85,21 @@ TOOL_OVERVIEW_END
 
     <script>
         const STAGES_CONFIG = [
-            { id: 'feed', name: 'Feed Starter', icon: '🍶' },
+            { id: 'feed', name: 'Feed Starter', icon: '🍶', isAnchor: true },
+            { id: 'levain', name: 'Levain', icon: '🧪' },
             { id: 'autolyse', name: 'Autolyse', icon: '🥣' },
             { id: 'folds', name: 'Stretch & Fold', icon: '🤲', hasCounter: true },
             { id: 'bulk', name: 'Bulk Ferment', icon: '🌋' },
             { id: 'cold', name: 'Cold Retard', icon: '❄️' },
-            { id: 'bake', name: 'Bake', icon: '🔥' }
+            { id: 'bake', name: 'Bake', icon: '🔥' },
+            { id: 'cool', name: 'Cooling', icon: '🌬️' }
         ];
 
         let state = {
             startTime: null,
-            stages: {} // keyed by stage id: { completed: bool, timestamp: null, folds: 0 }
+            stages: {} 
         };
 
-        // Load data from LocalStorage
         function loadData() {
             const saved = localStorage.getItem('sourdough_tracker_state');
             if (saved) {
@@ -130,7 +132,9 @@ TOOL_OVERVIEW_END
         function toggleStage(id) {
             const stage = state.stages[id];
             
-            if (!state.startTime) {
+            if (id === 'feed' && !state.startTime) {
+                state.startTime = Date.now();
+            } else if (!state.startTime) {
                 state.startTime = Date.now();
             }
 
@@ -157,12 +161,19 @@ TOOL_OVERVIEW_END
                 const prevStageConfig = STAGES_CONFIG[index - 1];
                 const prevStageData = prevStageConfig ? state.stages[prevStageConfig.id] : null;
 
-                let durationText = "";
-                if (stageData.completed && stageData.timestamp) {
+                const isActive = !stageData.completed && (index === 0 || prevStageData?.completed);
+
+                let secondaryText = "";
+                if (config.isAnchor && stageData.completed) {
+                    const d = new Date(stageData.timestamp);
+                    secondaryText = `Started: ${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                } else if (stageData.completed && stageData.timestamp) {
                     const startRef = index === 0 ? state.startTime : prevStageData?.timestamp;
                     if (startRef) {
-                        durationText = `Took ${formatDuration(stageData.timestamp - startRef)}`;
+                        secondaryText = `Duration: ${formatDuration(stageData.timestamp - startRef)}`;
                     }
+                } else if (stageData.timestamp) {
+                    secondaryText = "In Progress...";
                 }
 
                 const card = document.createElement('div');
@@ -170,6 +181,7 @@ TOOL_OVERVIEW_END
                 card.className = `
                     relative bg-white border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 
                     ${stageData.completed ? 'stage-completed shadow-sm opacity-60' : 'border-stone-200 hover:border-stone-300'}
+                    ${isActive ? 'ring-2 ring-amber-400 ring-offset-2 border-amber-200' : ''}
                 `;
 
                 card.innerHTML = `
@@ -179,19 +191,22 @@ TOOL_OVERVIEW_END
                             <div>
                                 <h4 class="font-bold ${stageData.completed ? 'text-green-800' : 'text-stone-700'}">${config.name}</h4>
                                 <p class="text-[10px] uppercase font-bold text-stone-400">
-                                    ${stageData.timestamp ? new Date(stageData.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Pending'}
-                                    ${durationText ? ' • ' + durationText : ''}
+                                    ${secondaryText || (isActive ? 'Awaiting Completion' : 'Pending')}
                                 </p>
                             </div>
                         </div>
                         
                         <div class="flex items-center gap-3">
-                            ${config.hasCounter && stageData.completed ? `
-                                <div class="flex items-center bg-stone-100 rounded-lg p-1" onclick="event.stopPropagation()">
-                                    <button onclick="adjustFolds('${config.id}', -1, event)" class="w-8 h-8 flex items-center justify-center hover:bg-white rounded shadow-sm">-</button>
-                                    <span class="px-3 font-mono font-bold text-sm">${stageData.folds}</span>
-                                    <button onclick="adjustFolds('${config.id}', 1, event)" class="w-8 h-8 flex items-center justify-center hover:bg-white rounded shadow-sm">+</button>
+                            ${config.hasCounter && isActive ? `
+                                <div class="flex items-center bg-amber-100 rounded-lg p-1 border border-amber-200" onclick="event.stopPropagation()">
+                                    <button onclick="adjustFolds('${config.id}', -1, event)" class="w-8 h-8 flex items-center justify-center hover:bg-white rounded shadow-sm text-amber-700 font-bold">-</button>
+                                    <span class="px-3 font-mono font-bold text-sm text-amber-800">${stageData.folds}</span>
+                                    <button onclick="adjustFolds('${config.id}', 1, event)" class="w-8 h-8 flex items-center justify-center hover:bg-white rounded shadow-sm text-amber-700 font-bold">+</button>
                                 </div>
+                            ` : ''}
+
+                            ${config.hasCounter && stageData.completed ? `
+                                <div class="text-stone-400 text-xs font-bold mr-2">${stageData.folds} Sets</div>
                             ` : ''}
                             
                             <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center ${stageData.completed ? 'bg-green-500 border-green-500' : 'border-stone-300'}">
@@ -221,7 +236,6 @@ TOOL_OVERVIEW_END
             closeResetModal();
         }
 
-        // Live Clock Tick
         setInterval(() => {
             const clockEl = document.getElementById('total-clock');
             const activeNameEl = document.getElementById('active-name');
@@ -229,16 +243,18 @@ TOOL_OVERVIEW_END
             const activeLabelEl = document.getElementById('active-label');
 
             if (state.startTime) {
-                // Update Total Time
                 const now = Date.now();
-                const totalElapsed = now - state.startTime;
+                
+                // Final stage is now 'cool'
+                const isFinished = state.stages['cool'].completed;
+                const endTime = isFinished ? state.stages['cool'].timestamp : now;
+                const totalElapsed = endTime - state.startTime;
+                
                 clockEl.innerText = formatDuration(totalElapsed);
 
-                // Find Active Stage
                 let activeIdx = STAGES_CONFIG.findIndex(s => !state.stages[s.id].completed);
                 
                 if (activeIdx === -1) {
-                    // All stages complete
                     activeNameEl.innerText = "Process Complete 🥖";
                     activeDurEl.innerText = "--:--:--";
                     activeLabelEl.innerText = "Summary";
@@ -248,7 +264,7 @@ TOOL_OVERVIEW_END
                     const stageStartTime = prevStageConfig ? state.stages[prevStageConfig.id].timestamp : state.startTime;
                     
                     activeNameEl.innerText = activeStageConfig.icon + " " + activeStageConfig.name;
-                    activeDurEl.innerText = formatDuration(now - stageStartTime);
+                    activeDurEl.innerText = formatDuration(now - (stageStartTime || now));
                     activeLabelEl.innerText = "Active Stage";
                 }
             } else {
@@ -259,7 +275,6 @@ TOOL_OVERVIEW_END
             }
         }, 1000);
 
-        // Initial Load
         window.onload = () => {
             loadData();
             render();
