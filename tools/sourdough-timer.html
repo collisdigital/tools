@@ -65,6 +65,11 @@ TOOL_OVERVIEW_END
             <!-- Stages will be injected here -->
         </div>
 
+        <!-- Export Button -->
+        <button id="copy-btn" onclick="copyToClipboard()" class="w-full bg-stone-100 text-stone-600 hover:bg-stone-200 py-3 rounded-xl font-bold transition-colors mt-6 mb-2">
+            Copy to clipboard
+        </button>
+
         <!-- Helpful Tip -->
         <footer class="mt-8 text-center text-xs text-stone-400">
             Progress is saved automatically to your browser.
@@ -144,6 +149,78 @@ TOOL_OVERVIEW_END
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const seconds = totalSeconds % 60;
             return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
+        }
+
+        function formatDurationHM(ms) {
+            if (!ms || ms < 0) return "00:00";
+            const totalSeconds = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            return [hours, minutes].map(v => String(v).padStart(2, '0')).join(':');
+        }
+
+        function formatIsoDate(timestamp) {
+            if (!timestamp) return "";
+            const d = new Date(timestamp);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}`;
+        }
+
+        function generateMarkdown() {
+            let markdown = "";
+            let totalTime = 0;
+            const now = Date.now();
+
+            if (state.startTime) {
+                const isFinished = state.stages['cool'].completed;
+                const endTime = isFinished ? state.stages['cool'].timestamp : now;
+                totalTime = endTime - state.startTime;
+            }
+
+            STAGES_CONFIG.forEach((config, index) => {
+                const stageData = state.stages[config.id];
+                const prevStageConfig = STAGES_CONFIG[index - 1];
+                const prevStageData = prevStageConfig ? state.stages[prevStageConfig.id] : null;
+
+                let line = `${index + 1}. ${config.name}: `;
+
+                if (stageData.completed && stageData.timestamp) {
+                    line += formatIsoDate(stageData.timestamp);
+
+                    if (index > 0) {
+                         const startRef = prevStageData ? prevStageData.timestamp : state.startTime;
+                         if (startRef) {
+                             const duration = stageData.timestamp - startRef;
+                             line += ` (Duration: ${formatDurationHM(duration)})`;
+                         }
+                    }
+                } else {
+                    line += "Pending";
+                }
+
+                markdown += line + "\n";
+            });
+
+            markdown += `\n**Total Time: ${formatDurationHM(totalTime)}**`;
+            return markdown;
+        }
+
+        function copyToClipboard() {
+            const markdown = generateMarkdown();
+            const btn = document.getElementById('copy-btn');
+
+            navigator.clipboard.writeText(markdown).then(() => {
+                btn.innerText = "Copied!";
+                setTimeout(() => {
+                    btn.innerText = "Copy to clipboard";
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
         }
 
         function toggleStage(id) {
