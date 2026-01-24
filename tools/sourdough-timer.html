@@ -48,6 +48,15 @@ TOOL_OVERVIEW_END
         <div class="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden mb-6">
             <!-- Total Timer Section -->
             <div class="p-6 text-center border-b border-stone-100">
+                <div class="mb-4 h-8 flex items-center justify-center">
+                    <div id="loaf-name-view" class="flex items-center gap-2 group">
+                        <h2 id="loaf-name-display" class="text-xl font-bold text-stone-800">Sourdough Loaf</h2>
+                        <button onclick="toggleNameEdit()" class="p-1 hover:bg-stone-100 rounded text-stone-400 hover:text-stone-600 transition-colors" title="Edit Loaf Name">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        </button>
+                    </div>
+                    <input id="loaf-name-input" type="text" aria-label="Edit loaf name" class="hidden w-2/3 border-b-2 border-amber-500 focus:outline-none text-xl font-bold text-center text-stone-800 bg-transparent" onblur="saveName()" onkeydown="handleNameKey(event)" />
+                </div>
                 <span class="text-xs font-bold uppercase tracking-wider text-stone-400">Total Process Time</span>
                 <div id="total-clock" class="text-5xl font-mono font-bold text-stone-800 mt-1">00:00:00</div>
             </div>
@@ -117,7 +126,8 @@ TOOL_OVERVIEW_END
 
         let state = {
             startTime: null,
-            stages: {} 
+            stages: {},
+            loafName: "Sourdough Loaf"
         };
 
         let editingStageId = null;
@@ -126,6 +136,7 @@ TOOL_OVERVIEW_END
             const saved = localStorage.getItem('sourdough_tracker_state');
             if (saved) {
                 state = JSON.parse(saved);
+                if (!state.loafName) state.loafName = "Sourdough Loaf";
             } else {
                 initNewState();
             }
@@ -136,6 +147,7 @@ TOOL_OVERVIEW_END
             STAGES_CONFIG.forEach(s => {
                 state.stages[s.id] = { completed: false, timestamp: null, folds: 0 };
             });
+            if (typeof state.loafName === 'undefined') state.loafName = "Sourdough Loaf";
         }
 
         function saveData() {
@@ -171,7 +183,7 @@ TOOL_OVERVIEW_END
         }
 
         function generateMarkdown() {
-            let markdown = "";
+            let markdown = `# ${state.loafName || "Sourdough Loaf"}\n\n`;
             let totalTime = 0;
             const now = Date.now();
 
@@ -247,6 +259,12 @@ TOOL_OVERVIEW_END
         }
 
         function render() {
+            // Update Loaf Name
+            const nameDisplay = document.getElementById('loaf-name-display');
+            if (nameDisplay) {
+                nameDisplay.innerText = state.loafName || "Sourdough Loaf";
+            }
+
             const container = document.getElementById('stages-container');
             container.innerHTML = '';
 
@@ -397,6 +415,58 @@ TOOL_OVERVIEW_END
             saveData();
             render();
             closeEditModal();
+        }
+
+        function toggleNameEdit() {
+            const viewEl = document.getElementById('loaf-name-view');
+            const inputEl = document.getElementById('loaf-name-input');
+
+            viewEl.classList.add('hidden');
+            inputEl.classList.remove('hidden');
+            inputEl.value = state.loafName || "Sourdough Loaf";
+            inputEl.focus();
+        }
+
+        let isEditingCancelled = false;
+
+        function saveName() {
+            if (isEditingCancelled) {
+                isEditingCancelled = false;
+                const viewEl = document.getElementById('loaf-name-view');
+                const inputEl = document.getElementById('loaf-name-input');
+                const displayEl = document.getElementById('loaf-name-display');
+
+                inputEl.value = state.loafName || "Sourdough Loaf"; // Reset input
+                inputEl.classList.add('hidden');
+                viewEl.classList.remove('hidden');
+                return;
+            }
+
+            const viewEl = document.getElementById('loaf-name-view');
+            const inputEl = document.getElementById('loaf-name-input');
+            const displayEl = document.getElementById('loaf-name-display');
+
+            let newName = inputEl.value.trim();
+            if (!newName) {
+                newName = "Sourdough Loaf";
+            }
+
+            state.loafName = newName;
+            saveData();
+
+            displayEl.innerText = newName;
+
+            inputEl.classList.add('hidden');
+            viewEl.classList.remove('hidden');
+        }
+
+        function handleNameKey(event) {
+            if (event.key === 'Enter') {
+                event.target.blur();
+            } else if (event.key === 'Escape') {
+                isEditingCancelled = true;
+                event.target.blur();
+            }
         }
 
         setInterval(() => {
