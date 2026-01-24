@@ -436,7 +436,7 @@ TOOL_OVERVIEW_END
                 const inputEl = document.getElementById('loaf-name-input');
                 const displayEl = document.getElementById('loaf-name-display');
 
-                inputEl.value = displayEl.innerText; // Reset input
+                inputEl.value = state.loafName || "Sourdough Loaf"; // Reset input
                 inputEl.classList.add('hidden');
                 viewEl.classList.remove('hidden');
                 return;
