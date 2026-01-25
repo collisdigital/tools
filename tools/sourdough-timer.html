@@ -163,14 +163,6 @@ TOOL_OVERVIEW_END
             return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
         }
 
-        function formatDurationHM(ms) {
-            if (!ms || ms < 0) return "00:00";
-            const totalSeconds = Math.floor(ms / 1000);
-            const hours = Math.floor(totalSeconds / 3600);
-            const minutes = Math.floor((totalSeconds % 3600) / 60);
-            return [hours, minutes].map(v => String(v).padStart(2, '0')).join(':');
-        }
-
         function formatIsoDate(timestamp) {
             if (!timestamp) return "";
             const d = new Date(timestamp);
@@ -198,7 +190,11 @@ TOOL_OVERVIEW_END
                 const prevStageConfig = STAGES_CONFIG[index - 1];
                 const prevStageData = prevStageConfig ? state.stages[prevStageConfig.id] : null;
 
-                let line = `${index + 1}. ${config.name}: `;
+                let line = `${index + 1}. ${config.name}`;
+                if (config.hasCounter && stageData.folds > 0) {
+                    line += ` (${stageData.folds} sets)`;
+                }
+                line += `: `;
 
                 if (stageData.completed && stageData.timestamp) {
                     line += formatIsoDate(stageData.timestamp);
@@ -207,7 +203,7 @@ TOOL_OVERVIEW_END
                          const startRef = prevStageData ? prevStageData.timestamp : state.startTime;
                          if (startRef) {
                              const duration = stageData.timestamp - startRef;
-                             line += ` (Duration: ${formatDurationHM(duration)})`;
+                             line += ` (Duration: ${formatDuration(duration)})`;
                          }
                     }
                 } else {
@@ -217,7 +213,7 @@ TOOL_OVERVIEW_END
                 markdown += line + "\n";
             });
 
-            markdown += `\n**Total Time: ${formatDurationHM(totalTime)}**`;
+            markdown += `\n**Total Time: ${formatDuration(totalTime)}**`;
             return markdown;
         }
 
