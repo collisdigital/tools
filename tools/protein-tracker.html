@@ -2,12 +2,12 @@
 TOOL_OVERVIEW_START
 {
   "name": "Protein Tracker Pro",
-  "description": "A lightweight, mobile-first web application designed for athletes and nutrition-conscious users to log protein intake throughout the day with real-time totals and persistent storage.",
+  "description": "A lightweight, mobile-first web application for tracking protein intake with 24-hour time formatting, persistent local storage, and validated entry editing.",
   "functionality": {
-    "entry_management": "Users can add, edit, and remove protein entries with descriptions, gram amounts, and automatic timestamps.",
-    "persistence": "Data is automatically synchronized with browser local storage to ensure logs remain available across sessions.",
-    "summary_dashboard": "A prominent visual header displays the total protein count for the day.",
-    "reporting": "Generates a formatted plaintext report including date, itemized timestamps, and totals for easy sharing."
+    "entry_management": "Users can log meals with descriptions, protein grams, and validated 24-hour timestamps.",
+    "persistence": "Automatic synchronization with browser local storage ensures data persists across sessions.",
+    "summary_dashboard": "Real-time calculation of total protein displayed in a high-visibility header.",
+    "reporting": "Generates a clean plaintext summary of the day's intake using 24-hour time for easy sharing."
   },
   "dependencies": ["Tailwind CSS", "Google Fonts (Inter)"],
   "last_updated": "2026-01-26"
@@ -29,9 +29,6 @@ TOOL_OVERVIEW_END
         }
         .item-card {
             transition: all 0.2s ease;
-        }
-        .edit-mode .item-card {
-            border-color: #3b82f6;
         }
         [onclick] {
             cursor: pointer;
@@ -65,12 +62,12 @@ TOOL_OVERVIEW_END
                 <div>
                     <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Description</label>
                     <input type="text" id="desc-input" placeholder="e.g. Chicken Breast, Shake" 
-                           class="w-full px-4 py-3 bg-gray-50 border-transparent focus:bg-white focus:border-blue-500 focus:ring-0 rounded-xl transition text-gray-700 outline-none">
+                           class="w-full px-4 py-3 bg-gray-50 border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl transition text-gray-700 outline-none">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Amount (grams)</label>
                     <input type="number" id="protein-input" placeholder="0" 
-                           class="w-full px-4 py-3 bg-gray-50 border-transparent focus:bg-white focus:border-blue-500 focus:ring-0 rounded-xl transition text-gray-700 outline-none">
+                           class="w-full px-4 py-3 bg-gray-50 border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl transition text-gray-700 outline-none">
                 </div>
                 <button onclick="addItem()" class="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-gray-800 transition transform active:scale-95">
                     Add Entry
@@ -115,8 +112,11 @@ TOOL_OVERVIEW_END
         const STORAGE_KEY = 'protein_tracker_data_v2';
         let items = [];
         let editingId = null;
+        let isTimeValid = true;
 
-        // --- Persistence Logic ---
+        // Regex for 24-hour format: 00:00 to 23:59
+        const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
         function loadData() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
@@ -133,7 +133,6 @@ TOOL_OVERVIEW_END
             localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
         }
 
-        // --- App Logic ---
         function addItem() {
             const descInput = document.getElementById('desc-input');
             const proteinInput = document.getElementById('protein-input');
@@ -146,7 +145,9 @@ TOOL_OVERVIEW_END
             }
 
             const now = new Date();
-            const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            // Generate 24-hour format string HH:mm
+            const time = now.getHours().toString().padStart(2, '0') + ':' + 
+                         now.getMinutes().toString().padStart(2, '0');
 
             const newItem = {
                 id: Date.now(),
@@ -165,6 +166,7 @@ TOOL_OVERVIEW_END
 
         function toggleEdit(id) {
             editingId = (editingId === id) ? null : id;
+            isTimeValid = true; 
             render();
         }
 
@@ -173,15 +175,42 @@ TOOL_OVERVIEW_END
             if (item) {
                 if (field === 'protein') {
                     item[field] = parseFloat(value) || 0;
+                } else if (field === 'time') {
+                    item[field] = value;
+                    validateTimeInput(value);
                 } else {
                     item[field] = value;
                 }
-                saveData();
-                calculateTotal();
+                
+                if (isTimeValid) {
+                    saveData();
+                    calculateTotal();
+                }
+            }
+        }
+
+        function validateTimeInput(value) {
+            const doneBtn = document.getElementById('done-btn');
+            const timeInput = document.getElementById('edit-time-input');
+            
+            isTimeValid = TIME_REGEX.test(value);
+            
+            if (doneBtn) {
+                doneBtn.disabled = !isTimeValid;
+                doneBtn.style.opacity = isTimeValid ? '1' : '0.5';
+            }
+
+            if (timeInput) {
+                if (!isTimeValid) {
+                    timeInput.classList.add('border-red-500', 'ring-2', 'ring-red-100');
+                } else {
+                    timeInput.classList.remove('border-red-500', 'ring-2', 'ring-red-100');
+                }
             }
         }
 
         function saveEdit() {
+            if (!isTimeValid) return;
             editingId = null;
             saveData();
             render();
@@ -220,11 +249,25 @@ TOOL_OVERVIEW_END
                                     </svg>
                                 </button>
                             </div>
-                            <input type="text" value="${item.description}" oninput="updateItem(${item.id}, 'description', this.value)" 
-                                   class="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm outline-none focus:bg-gray-100 transition">
-                            <input type="number" value="${item.protein}" oninput="updateItem(${item.id}, 'protein', this.value)" 
-                                   class="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm outline-none focus:bg-gray-100 transition">
-                            <button onclick="saveEdit()" class="w-full bg-blue-500 text-white font-bold py-2 rounded-lg text-sm shadow-md active:scale-95 transition">Done</button>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Description</label>
+                                <input type="text" value="${item.description}" oninput="updateItem(${item.id}, 'description', this.value)" 
+                                       class="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm outline-none focus:bg-gray-100 transition">
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Time (HH:mm)</label>
+                                    <input type="text" id="edit-time-input" value="${item.time}" oninput="updateItem(${item.id}, 'time', this.value)" 
+                                           placeholder="14:30"
+                                           class="w-full px-3 py-2 bg-gray-50 border border-transparent rounded-lg text-sm outline-none focus:bg-gray-100 transition">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Grams</label>
+                                    <input type="number" value="${item.protein}" oninput="updateItem(${item.id}, 'protein', this.value)" 
+                                           class="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm outline-none focus:bg-gray-100 transition">
+                                </div>
+                            </div>
+                            <button id="done-btn" onclick="saveEdit()" class="w-full bg-blue-500 text-white font-bold py-2 rounded-lg text-sm shadow-md active:scale-95 transition">Done</button>
                         </div>
                     `;
                 } else {
@@ -287,8 +330,7 @@ TOOL_OVERVIEW_END
             const dateStr = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             const total = items.reduce((sum, item) => sum + item.protein, 0);
             
-            let text = `Protein Intake Report - ${dateStr}\n`;
-            text += `====================================\n\n`;
+            let text = `Protein Intake Report - ${dateStr}\n\n`;
             
             if (items.length === 0) {
                 text += "No entries recorded.\n";
@@ -298,9 +340,7 @@ TOOL_OVERVIEW_END
                 });
             }
             
-            text += `\n------------------------------------\n`;
-            text += `TOTAL PROTEIN: ${total}g\n`;
-            text += `====================================`;
+            text += `\nTOTAL PROTEIN: ${total}g`;
 
             const el = document.createElement('textarea');
             el.value = text;
