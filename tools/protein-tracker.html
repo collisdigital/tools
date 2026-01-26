@@ -1,0 +1,324 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "Protein Tracker Pro",
+  "description": "A lightweight, mobile-first web application designed for athletes and nutrition-conscious users to log protein intake throughout the day with real-time totals and persistent storage.",
+  "functionality": {
+    "entry_management": "Users can add, edit, and remove protein entries with descriptions, gram amounts, and automatic timestamps.",
+    "persistence": "Data is automatically synchronized with browser local storage to ensure logs remain available across sessions.",
+    "summary_dashboard": "A prominent visual header displays the total protein count for the day.",
+    "reporting": "Generates a formatted plaintext report including date, itemized timestamps, and totals for easy sharing."
+  },
+  "dependencies": ["Tailwind CSS", "Google Fonts (Inter)"],
+  "last_updated": "2026-01-26"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protein Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .item-card {
+            transition: all 0.2s ease;
+        }
+        .edit-mode .item-card {
+            border-color: #3b82f6;
+        }
+        [onclick] {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-32">
+
+    <div class="max-w-md mx-auto px-4 pt-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Protein Tracker</h1>
+            <button onclick="showResetModal()" class="text-sm font-medium text-red-500 hover:text-red-600 transition">
+                Reset All
+            </button>
+        </div>
+
+        <!-- Summary Card -->
+        <div class="bg-blue-600 rounded-3xl p-8 mb-8 shadow-xl shadow-blue-200 text-center">
+            <p class="text-blue-100 text-sm font-medium uppercase tracking-wider mb-2">Total Protein Today</p>
+            <div class="flex items-baseline justify-center">
+                <span id="total-protein" class="text-6xl font-black text-white">0</span>
+                <span class="text-2xl font-bold text-blue-200 ml-2">g</span>
+            </div>
+        </div>
+
+        <!-- Add Item Form -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-8">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Add New Entry</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Description</label>
+                    <input type="text" id="desc-input" placeholder="e.g. Chicken Breast, Shake" 
+                           class="w-full px-4 py-3 bg-gray-50 border-transparent focus:bg-white focus:border-blue-500 focus:ring-0 rounded-xl transition text-gray-700 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Amount (grams)</label>
+                    <input type="number" id="protein-input" placeholder="0" 
+                           class="w-full px-4 py-3 bg-gray-50 border-transparent focus:bg-white focus:border-blue-500 focus:ring-0 rounded-xl transition text-gray-700 outline-none">
+                </div>
+                <button onclick="addItem()" class="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-gray-800 transition transform active:scale-95">
+                    Add Entry
+                </button>
+            </div>
+        </div>
+
+        <!-- History List -->
+        <div class="space-y-4" id="items-list">
+            <!-- Items injected here -->
+        </div>
+
+        <!-- Clipboard Action -->
+        <div class="fixed bottom-6 left-0 right-0 px-4 max-w-md mx-auto">
+            <button onclick="copyToClipboard()" class="w-full bg-white border border-gray-200 text-gray-700 font-semibold py-4 rounded-2xl shadow-lg hover:bg-gray-50 transition flex items-center justify-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                </svg>
+                <span>Copy to Clipboard</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full text-sm font-medium shadow-2xl opacity-0 pointer-events-none transition-opacity duration-300 z-50">
+        Copied to clipboard!
+    </div>
+
+    <!-- Reset Confirmation Modal -->
+    <div id="reset-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl">
+            <h3 class="text-xl font-bold text-gray-800 mb-2">Reset Tracker?</h3>
+            <p class="text-gray-500 mb-6">This will clear all entries for today. This action cannot be undone.</p>
+            <div class="flex flex-col space-y-3">
+                <button onclick="resetAll()" class="w-full bg-red-500 text-white font-bold py-3 rounded-xl">Yes, Reset</button>
+                <button onclick="hideResetModal()" class="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-xl">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'protein_tracker_data_v2';
+        let items = [];
+        let editingId = null;
+
+        // --- Persistence Logic ---
+        function loadData() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    items = JSON.parse(saved);
+                } catch (e) {
+                    items = [];
+                    console.error("Failed to parse saved data", e);
+                }
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+        }
+
+        // --- App Logic ---
+        function addItem() {
+            const descInput = document.getElementById('desc-input');
+            const proteinInput = document.getElementById('protein-input');
+            const desc = descInput.value.trim();
+            const protein = parseFloat(proteinInput.value);
+
+            if (!desc || isNaN(protein)) {
+                showMessage("Please enter valid details.");
+                return;
+            }
+
+            const now = new Date();
+            const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const newItem = {
+                id: Date.now(),
+                description: desc,
+                protein: protein,
+                time: time
+            };
+
+            items.unshift(newItem);
+            descInput.value = '';
+            proteinInput.value = '';
+            
+            saveData();
+            render();
+        }
+
+        function toggleEdit(id) {
+            editingId = (editingId === id) ? null : id;
+            render();
+        }
+
+        function updateItem(id, field, value) {
+            const item = items.find(i => i.id === id);
+            if (item) {
+                if (field === 'protein') {
+                    item[field] = parseFloat(value) || 0;
+                } else {
+                    item[field] = value;
+                }
+                saveData();
+                calculateTotal();
+            }
+        }
+
+        function saveEdit() {
+            editingId = null;
+            saveData();
+            render();
+        }
+
+        function deleteItem(id) {
+            items = items.filter(item => item.id !== id);
+            if (editingId === id) editingId = null;
+            saveData();
+            render();
+        }
+
+        function calculateTotal() {
+            const total = items.reduce((sum, item) => sum + item.protein, 0);
+            document.getElementById('total-protein').innerText = total;
+        }
+
+        function render() {
+            const list = document.getElementById('items-list');
+            list.innerHTML = '';
+
+            items.forEach(item => {
+                const isEditing = editingId === item.id;
+                
+                const itemEl = document.createElement('div');
+                itemEl.className = `bg-white rounded-2xl p-4 shadow-sm border ${isEditing ? 'border-blue-400 ring-2 ring-blue-50' : 'border-gray-100'} transition-all`;
+                
+                if (isEditing) {
+                    itemEl.innerHTML = `
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-blue-500 uppercase">Editing Entry</span>
+                                <button onclick="deleteItem(${item.id})" class="text-red-500 hover:text-red-600 p-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <input type="text" value="${item.description}" oninput="updateItem(${item.id}, 'description', this.value)" 
+                                   class="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm outline-none focus:bg-gray-100 transition">
+                            <input type="number" value="${item.protein}" oninput="updateItem(${item.id}, 'protein', this.value)" 
+                                   class="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm outline-none focus:bg-gray-100 transition">
+                            <button onclick="saveEdit()" class="w-full bg-blue-500 text-white font-bold py-2 rounded-lg text-sm shadow-md active:scale-95 transition">Done</button>
+                        </div>
+                    `;
+                } else {
+                    itemEl.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs text-gray-400 font-medium">${item.time}</span>
+                                    <h3 class="font-bold text-gray-800">${item.description}</h3>
+                                </div>
+                                <p class="text-sm text-gray-500 font-medium">${item.protein}g Protein</p>
+                            </div>
+                            <button onclick="toggleEdit(${item.id})" class="p-2 text-gray-400 hover:text-blue-500 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                list.appendChild(itemEl);
+            });
+
+            calculateTotal();
+            if (items.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center py-10">
+                        <p class="text-gray-400 text-sm italic">No entries yet. Start by adding a meal!</p>
+                    </div>
+                `;
+            }
+        }
+
+        function showResetModal() {
+            document.getElementById('reset-modal').classList.remove('hidden');
+        }
+
+        function hideResetModal() {
+            document.getElementById('reset-modal').classList.add('hidden');
+        }
+
+        function resetAll() {
+            items = [];
+            editingId = null;
+            saveData();
+            render();
+            hideResetModal();
+            showMessage("Tracker cleared.");
+        }
+
+        function showMessage(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => toast.classList.add('opacity-0'), 2000);
+        }
+
+        function copyToClipboard() {
+            const dateStr = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const total = items.reduce((sum, item) => sum + item.protein, 0);
+            
+            let text = `Protein Intake Report - ${dateStr}\n`;
+            text += `====================================\n\n`;
+            
+            if (items.length === 0) {
+                text += "No entries recorded.\n";
+            } else {
+                items.forEach(item => {
+                    text += `[${item.time}] ${item.description}: ${item.protein}g\n`;
+                });
+            }
+            
+            text += `\n------------------------------------\n`;
+            text += `TOTAL PROTEIN: ${total}g\n`;
+            text += `====================================`;
+
+            const el = document.createElement('textarea');
+            el.value = text;
+            el.setAttribute('readonly', '');
+            el.style.position = 'absolute';
+            el.style.left = '-9999px';
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+
+            showMessage("Report copied to clipboard!");
+        }
+
+        window.onload = () => {
+            loadData();
+            render();
+        };
+    </script>
+</body>
+</html>
