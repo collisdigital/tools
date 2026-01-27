@@ -401,7 +401,8 @@ TOOL_OVERVIEW_END
                 }
 
                 // Render
-                const html = generateActivitiesHtml(itemsToRender); 
+                const isLatestBatch = mode === 'recent' || (mode === 'all' && !activityState.nextPageToken);
+                const html = generateActivitiesHtml(itemsToRender, sessionName, isLatestBatch);
                 
                 if (isLoadMore) {
                     const prevCount = contentDiv.children.length;
@@ -515,10 +516,14 @@ TOOL_OVERVIEW_END
                     originator: 'USER' // Heuristic for rendering
                 };
 
-                const html = generateActivitiesHtml([mockActivity]);
                 const containerId = `activities-${sessionId}`;
                 const contentDiv = document.querySelector(`#${containerId} .activities-content`);
 
+                // Remove any existing approve buttons as this new message makes them not most recent
+                const existingBtns = contentDiv.querySelectorAll('.approve-plan-btn');
+                existingBtns.forEach(btn => btn.closest('div.border-t')?.remove() || btn.remove());
+
+                const html = generateActivitiesHtml([mockActivity], sessionName, true);
                 contentDiv.insertAdjacentHTML('beforeend', html);
 
                 // Scroll to bottom
@@ -537,6 +542,52 @@ TOOL_OVERVIEW_END
                 txtInput.disabled = false;
                 btn.disabled = false;
                 btn.innerText = 'Send';
+            }
+        }
+
+        async function approvePlan(sessionName, btnElement) {
+            // UI Loading State
+            const originalText = btnElement.innerHTML;
+            btnElement.disabled = true;
+            btnElement.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-green-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Approving...
+            `;
+
+            try {
+                const url = new URL(`${CONFIG.baseUrl}/${sessionName}:approvePlan`);
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({})
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.error?.message || `API Error: ${response.status}`);
+                }
+
+                // Success
+                btnElement.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Approved
+                `;
+                btnElement.classList.remove('bg-green-50', 'text-green-700', 'hover:bg-green-100', 'border-green-200');
+                btnElement.classList.add('bg-gray-100', 'text-gray-500', 'cursor-default', 'border-gray-200');
+                // Keep disabled
+
+            } catch (err) {
+                console.error(err);
+                alert(`Failed to approve plan: ${err.message}`);
+                // Restore state
+                btnElement.disabled = false;
+                btnElement.innerHTML = originalText;
             }
         }
 
@@ -674,8 +725,11 @@ TOOL_OVERVIEW_END
 
         // --- Activity Rendering Implementation ---
         
-        function generateActivitiesHtml(activities) {
-            return activities.map(activity => {
+        function generateActivitiesHtml(activities, sessionName, isLatestBatch) {
+            return activities.map((activity, index) => {
+                const isLastItem = index === activities.length - 1;
+                const showApproveButton = isLatestBatch && isLastItem && activity.planGenerated && sessionName;
+
                 const originator = activity.originator || 'system';
                 const isUser = originator.toLowerCase() === 'user';
                 const timeStr = activity.createTime ? new Date(activity.createTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
@@ -693,6 +747,19 @@ TOOL_OVERVIEW_END
                 } else if (activity.planGenerated) {
                     typeLabel = 'Plan Generated';
                     contentHtml = renderPlan(activity.planGenerated.plan);
+
+                    if (showApproveButton) {
+                        contentHtml += `
+                            <div class="mt-3 pt-3 border-t border-gray-100">
+                                <button onclick="approvePlan('${sessionName}', this)" class="approve-plan-btn inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-md text-xs font-semibold hover:bg-green-100 transition-colors border border-green-200 shadow-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Approve Plan
+                                </button>
+                            </div>
+                        `;
+                    }
                 } else if (activity.planApproved) {
                     typeLabel = 'Plan Approved';
                     contentHtml = `<div class="flex items-center text-green-700 bg-green-50 p-2 rounded border border-green-200">
