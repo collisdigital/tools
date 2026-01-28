@@ -85,7 +85,7 @@ TOOL_OVERVIEW_END
                 <h1 class="text-xl font-medium text-gray-900 tracking-tight">Jules Dashboard</h1>
             </div>
             <div class="flex items-center gap-3">
-                <button onclick="openCreateSessionModal()" class="text-gray-500 hover:text-green-600 transition-colors focus:outline-none" title="Start New Session" id="createSessionBtn">
+                <button onclick="openCreateSessionModal()" class="hidden text-gray-500 hover:text-green-600 transition-colors focus:outline-none" title="Start New Session" id="createSessionBtn">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
@@ -272,6 +272,7 @@ TOOL_OVERVIEW_END
             errorText: document.getElementById('errorText'),
             loadMoreContainer: document.getElementById('loadMoreContainer'),
             refreshBtn: document.getElementById('refreshBtn'),
+            createSessionBtn: document.getElementById('createSessionBtn'),
             // Create Session Modal Elements
             createSessionModal: document.getElementById('createSessionModal'),
             sourceSelect: document.getElementById('sourceSelect'),
@@ -289,6 +290,7 @@ TOOL_OVERVIEW_END
             const storedKey = localStorage.getItem(CONFIG.localStorageKey);
             if (storedKey) {
                 els.apiKeyInput.value = storedKey;
+                els.createSessionBtn.classList.remove('hidden');
                 fetchSessions();
             } else {
                 els.welcomeState.classList.remove('hidden');
@@ -327,6 +329,9 @@ TOOL_OVERVIEW_END
             localStorage.setItem(CONFIG.localStorageKey, key);
             toggleSettings();
             
+            // Show UI elements
+            els.createSessionBtn.classList.remove('hidden');
+
             // Reset state and fetch
             state.sessions = [];
             state.nextPageToken = null;
