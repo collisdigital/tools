@@ -322,7 +322,7 @@ TOOL_OVERVIEW_END
             // Init state if needed
             if (!window.activityStates) window.activityStates = {};
             if (!window.activityStates[sessionName]) {
-                window.activityStates[sessionName] = { nextPageToken: null, mode: 'recent' };
+                window.activityStates[sessionName] = { nextPageToken: null, mode: 'recent', params: {} };
             }
             const activityState = window.activityStates[sessionName];
 
@@ -381,9 +381,16 @@ TOOL_OVERVIEW_END
                     console.log(`Recent Mode: Found ${totalCount} total. Displaying last ${tailBuffer.length}.`);
                     
                 } else {
-                    // --- "All" Logic (Forward Pagination) ---
+                    // --- "All" / Time Filter Logic (Forward Pagination) ---
                     const url = new URL(`${CONFIG.baseUrl}/${sessionName}/activities`);
                     url.searchParams.append('pageSize', '15');
+
+                    // Apply active parameters (e.g. createTime)
+                    if (activityState.params) {
+                        Object.entries(activityState.params).forEach(([key, value]) => {
+                            if (value) url.searchParams.append(key, value);
+                        });
+                    }
                     
                     // Use stored token if loading more, otherwise start fresh (null)
                     // If isLoadMore is false, we are resetting, so use null. 
@@ -397,11 +404,11 @@ TOOL_OVERVIEW_END
                     itemsToRender = data.activities || [];
                     activityState.nextPageToken = data.nextPageToken || null;
                     
-                    console.log(`All Mode: Fetched ${itemsToRender.length} items. Next page? ${!!activityState.nextPageToken}`);
+                    console.log(`Fetch Mode (${mode}): Fetched ${itemsToRender.length} items. Next page? ${!!activityState.nextPageToken}`);
                 }
 
                 // Render
-                const isLatestBatch = mode === 'recent' || (mode === 'all' && !activityState.nextPageToken);
+                const isLatestBatch = mode === 'recent' || (mode !== 'recent' && !activityState.nextPageToken);
                 const html = generateActivitiesHtml(itemsToRender, sessionName, isLatestBatch);
                 
                 if (isLoadMore) {
@@ -418,8 +425,8 @@ TOOL_OVERVIEW_END
                 
                 contentDiv.classList.remove('hidden');
 
-                // Handle Load More visibility (Only for 'all' mode)
-                if (mode === 'all' && activityState.nextPageToken) {
+                // Handle Load More visibility (For non-recent modes)
+                if (mode !== 'recent' && activityState.nextPageToken) {
                     loadMoreBtn.classList.remove('hidden');
                     const btn = loadMoreBtn.querySelector('button');
                     if(btn) { btn.disabled = false; btn.textContent = 'Load next 15...'; }
@@ -443,7 +450,7 @@ TOOL_OVERVIEW_END
         }
 
         // New Helper Functions
-        function setActivityMode(sessionName, containerId, mode) {
+        function setActivityMode(sessionName, containerId, mode, params = {}) {
             // Update UI buttons
             const container = document.getElementById(containerId);
             const btns = container.querySelectorAll('.mode-btn');
@@ -455,10 +462,17 @@ TOOL_OVERVIEW_END
                 }
             });
 
+            // Reset dropdown if switching away from time mode
+            if (mode !== 'time') {
+                const select = container.querySelector('select');
+                if (select) select.value = "";
+            }
+
             // Update State
             if (!window.activityStates) window.activityStates = {};
             if (!window.activityStates[sessionName]) window.activityStates[sessionName] = {};
             window.activityStates[sessionName].mode = mode;
+            window.activityStates[sessionName].params = params;
             window.activityStates[sessionName].nextPageToken = null; // Reset pagination
 
             // Fetch
@@ -466,12 +480,35 @@ TOOL_OVERVIEW_END
         }
 
         function loadMoreActivities(sessionName, containerId) {
-            fetchActivities(sessionName, containerId, 'all', true);
+            const mode = window.activityStates?.[sessionName]?.mode || 'all';
+            fetchActivities(sessionName, containerId, mode, true);
         }
 
         function triggerInitialLoad(sessionName, containerId) {
              const mode = window.activityStates?.[sessionName]?.mode || 'recent';
              fetchActivities(sessionName, containerId, mode, false);
+        }
+
+        function applyTimeFilter(sessionName, containerId, selectEl) {
+            const val = selectEl.value;
+            if (!val) return; // "Time Range..." selected
+
+            const timestamp = calculatePastTimestamp(val);
+            setActivityMode(sessionName, containerId, 'time', { createTime: timestamp });
+        }
+
+        function calculatePastTimestamp(rangeCode) {
+            const now = new Date();
+            let minutes = 0;
+
+            if (rangeCode.endsWith('m')) {
+                minutes = parseInt(rangeCode);
+            } else if (rangeCode.endsWith('h')) {
+                minutes = parseInt(rangeCode) * 60;
+            }
+
+            now.setMinutes(now.getMinutes() - minutes);
+            return now.toISOString();
         }
 
         function retryFetch() {
@@ -669,9 +706,21 @@ TOOL_OVERVIEW_END
                                 <!-- Toolbar -->
                                 <div class="flex justify-between items-center mb-3 px-1">
                                     <div class="text-xs font-medium text-gray-500">Activity Log</div>
-                                    <div class="flex bg-white rounded-lg border border-gray-200 p-0.5">
+                                    <div class="flex items-center bg-white rounded-lg border border-gray-200 p-0.5 gap-1">
                                         <button data-mode="recent" onclick="setActivityMode('${session.name}', '${containerId}', 'recent')" class="mode-btn px-3 py-1 text-xs rounded-md font-medium bg-blue-50 text-blue-600 shadow-sm transition-all">Recent 10</button>
                                         <button data-mode="all" onclick="setActivityMode('${session.name}', '${containerId}', 'all')" class="mode-btn px-3 py-1 text-xs rounded-md font-medium text-gray-500 hover:text-gray-700 transition-all">All</button>
+
+                                        <div class="w-px h-4 bg-gray-200 mx-0.5"></div>
+
+                                        <select onchange="applyTimeFilter('${session.name}', '${containerId}', this)" class="text-xs border-0 bg-transparent text-gray-500 hover:text-gray-700 font-medium focus:ring-0 cursor-pointer py-1 pl-1 pr-1 outline-none">
+                                            <option value="" selected disabled>Time Filter</option>
+                                            <option value="15m">Last 15m</option>
+                                            <option value="1h">Last 1h</option>
+                                            <option value="3h">Last 3h</option>
+                                            <option value="6h">Last 6h</option>
+                                            <option value="12h">Last 12h</option>
+                                            <option value="24h">Last 24h</option>
+                                        </select>
                                     </div>
                                 </div>
 
