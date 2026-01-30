@@ -2,13 +2,13 @@
 TOOL_OVERVIEW_START
 {
   "name": "NEON SWEEP // Tactical De-mining",
-  "description": "A high-fidelity, sci-fi themed Minesweeper game featuring a neon-noir aesthetic, responsive grid mechanics, and persistent floating tactical controls.",
+  "description": "A high-fidelity, sci-fi themed Minesweeper game featuring a neon-noir aesthetic, responsive grid mechanics, persistent floating tactical controls, and advanced tactical chording.",
   "functionality": {
+    "tactical_chording_feedback": "Introduces visual feedback for chording failures: a 3x3 grid highlight pulses when flag requirements aren't met.",
+    "ghost_signal_protocol": "Implements the 'Unsure' (?) mark within the marking cycle (None -> Flag -> Unsure).",
+    "tactical_chording": "Allows users to click revealed numbers to perform a 'Burst Scan' of surrounding cells. Ignores Unsure marks for safety.",
     "guaranteed_safe_start": "Mines are generated only after the first scan move, ensuring the initial click is never a detonation.",
-    "rectangular_hud": "Mission header uses a full rectangular design for better visual alignment and clarity.",
-    "floating_tactical_modes": "Persistent Scan and Mark buttons floating on-screen for rapid input protocol switching.",
-    "system_menu": "Difficulty selection (Alpha, Gamma, Omega) is managed through the side-access burger menu.",
-    "dynamic_grid_scaling": "Ensures the tactical border accurately contains the grid across all difficulty tiers, supporting horizontal overflow on mobile."
+    "rectangular_hud": "Mission header uses a full rectangular design for better visual alignment and clarity."
   },
   "dependencies": ["Tailwind CSS", "Google Fonts (Orbitron, JetBrains Mono)"],
   "last_updated": "2024-05-24"
@@ -115,6 +115,12 @@ TOOL_OVERVIEW_END
             text-shadow: 0 0 8px var(--neon-yellow);
         }
 
+        .grid-cell.unsure::after {
+            content: '?';
+            color: var(--neon-magenta);
+            text-shadow: 0 0 8px var(--neon-magenta);
+        }
+
         .status-display {
             background: var(--panel-bg);
             border: 2px solid var(--neon-cyan);
@@ -198,7 +204,6 @@ TOOL_OVERVIEW_END
         .custom-scroll::-webkit-scrollbar-track { background: rgba(0, 243, 255, 0.05); }
         .custom-scroll::-webkit-scrollbar-thumb { background: var(--neon-cyan); border-radius: 10px; }
 
-        /* Floating Mode Buttons */
         .tap-mode-container {
             position: fixed;
             bottom: 30px;
@@ -229,12 +234,29 @@ TOOL_OVERVIEW_END
             color: var(--bg-dark);
             box-shadow: 0 0 15px var(--neon-cyan);
         }
+
+        /* Chording Effects */
+        @keyframes burst-effect {
+            0% { outline: 0px solid var(--neon-cyan); outline-offset: 0; opacity: 1; }
+            100% { outline: 10px solid transparent; outline-offset: 20px; opacity: 0; }
+        }
+        .bursting {
+            animation: burst-effect 0.4s ease-out;
+        }
+
+        @keyframes error-pulse-anim {
+            0% { border-color: var(--neon-magenta); box-shadow: 0 0 15px var(--neon-magenta); }
+            100% { border-color: rgba(0, 243, 255, 0.2); box-shadow: none; }
+        }
+        .error-pulse {
+            animation: error-pulse-anim 0.5s ease-out;
+            z-index: 10;
+        }
     </style>
 </head>
 <body class="flex flex-col items-center justify-start min-h-screen p-4 pb-24">
     <div class="scanline"></div>
 
-    <!-- HUD / Header -->
     <div class="w-full max-w-md relative z-30 mb-4 mt-2">
         <div class="status-display p-4 md:p-6 flex justify-between items-center border-2 border-cyan-400">
             <div class="flex flex-col">
@@ -266,7 +288,6 @@ TOOL_OVERVIEW_END
         </div>
     </div>
 
-    <!-- System Side Menu (Difficulty Only) -->
     <div id="side-menu" class="fixed top-0 right-0 h-full w-64 z-[100] transform translate-x-full p-8 flex flex-col">
         <div class="flex justify-between items-center mb-12">
             <h3 class="text-lg font-bold tracking-widest text-white">SYSTEM_OS</h3>
@@ -287,29 +308,23 @@ TOOL_OVERVIEW_END
         </div>
 
         <div class="mt-auto opacity-30 text-[10px] tracking-widest text-center">
-            V 2.6.0 // NEON_CORE
+            V 2.8.5 // NEON_CORE
         </div>
     </div>
     
-    <!-- Darkened Backdrop -->
     <div id="menu-backdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] hidden transition-opacity duration-300 opacity-0"></div>
 
-    <!-- Floating Modes -->
     <div class="tap-mode-container">
         <button onclick="setTapMode('mine')" id="float-scan-btn" class="floating-mode-btn active">SCAN</button>
         <button onclick="setTapMode('flag')" id="float-mark-btn" class="floating-mode-btn">MARK</button>
     </div>
 
-    <!-- The Grid Container -->
     <div id="game-scroll-container" class="w-full overflow-x-auto custom-scroll flex justify-center py-4 px-2">
         <div id="grid-border" class="inline-block p-1 border-2 border-cyan-500/30 bg-cyan-900/10 shadow-[0_0_30px_rgba(0,243,255,0.05)] h-fit">
-            <div id="grid" class="grid gap-1">
-                <!-- Grid cells generated by JS -->
-            </div>
+            <div id="grid" class="grid gap-1"></div>
         </div>
     </div>
 
-    <!-- Game Status Overlay -->
     <div id="status-modal" class="modal-overlay fixed inset-0 flex items-center justify-center hidden z-[110]">
         <div class="text-center p-8 border-t border-b border-cyan-500 w-full max-w-sm">
             <h2 id="modal-title" class="text-3xl md:text-4xl font-bold mb-4 glitch-text italic">MISSION FAILED</h2>
@@ -340,7 +355,7 @@ TOOL_OVERVIEW_END
         let timer = null;
         let seconds = 0;
         let gameActive = false;
-        let firstMove = true; // New state to track the first move
+        let firstMove = true;
         let flagsUsed = 0;
         let tapMode = 'mine';
 
@@ -374,7 +389,8 @@ TOOL_OVERVIEW_END
             cols = configs[level].c;
             minesCount = configs[level].m;
             ['easy', 'medium', 'hard'].forEach(l => {
-                document.getElementById(`diff-${l}`).classList.toggle('active', l === level);
+                const el = document.getElementById(`diff-${l}`);
+                if (el) el.classList.toggle('active', l === level);
             });
             toggleMenu(false);
             initGame();
@@ -392,12 +408,12 @@ TOOL_OVERVIEW_END
             seconds = 0;
             flagsUsed = 0;
             gameActive = true;
-            firstMove = true; // Reset first move state
+            firstMove = true;
             timerElement.textContent = "00:00";
             updateMineCountDisplay();
             modal.classList.add('hidden');
             gridElement.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-            createEmptyBoard(); // Initialize grid without mines
+            createEmptyBoard();
             renderBoard();
         }
 
@@ -408,25 +424,23 @@ TOOL_OVERVIEW_END
                     isMine: false,
                     isRevealed: false,
                     isFlagged: false,
+                    isUnsure: false,
                     neighborCount: 0
                 }))
             );
         }
 
-        // Logic to place mines AFTER the first click
         function generateMines(safeR, safeC) {
             let minesPlaced = 0;
             while (minesPlaced < minesCount) {
                 let r = Math.floor(Math.random() * rows);
                 let c = Math.floor(Math.random() * cols);
-                // Ensure the clicked square (safeR, safeC) is never a mine
                 if (!board[r][c].isMine && (r !== safeR || c !== safeC)) {
                     board[r][c].isMine = true;
                     minesPlaced++;
                 }
             }
             
-            // Recalculate neighbor counts for all cells
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     if (board[r][c].isMine) continue;
@@ -481,14 +495,18 @@ TOOL_OVERVIEW_END
             startTimer();
             const cell = board[r][c];
 
-            if (isRightClick || tapMode === 'flag') {
-                toggleFlag(cell);
+            if (cell.isRevealed) {
+                handleChording(cell);
                 return;
             }
 
-            if (cell.isFlagged || cell.isRevealed) return;
+            if (isRightClick || tapMode === 'flag') {
+                cycleMark(cell);
+                return;
+            }
 
-            // SAFE START LOGIC: If first scan, generate mines now
+            if (cell.isFlagged || cell.isUnsure) return;
+
             if (firstMove) {
                 firstMove = false;
                 generateMines(r, c);
@@ -503,12 +521,61 @@ TOOL_OVERVIEW_END
             checkWin();
         }
 
-        function toggleFlag(cell) {
+        function handleChording(cell) {
+            if (cell.neighborCount === 0) return;
+
+            const neighbors = getNeighbors(cell.r, cell.c);
+            const flagCount = neighbors.filter(n => n.isFlagged).length;
+
+            if (flagCount === cell.neighborCount) {
+                // Success: Execute Tactical Burst
+                const div = document.getElementById(`cell-${cell.r}-${cell.c}`);
+                div.classList.add('bursting');
+                setTimeout(() => div.classList.remove('bursting'), 400);
+
+                neighbors.forEach(n => {
+                    if (!n.isRevealed && !n.isFlagged && !n.isUnsure) {
+                        if (n.isMine) {
+                            gameOver(false);
+                        } else {
+                            revealCell(n.r, n.c);
+                        }
+                    }
+                });
+                checkWin();
+            } else {
+                // Failure: Provide 3x3 Grid Error Feedback
+                const highlightGroup = [...neighbors, cell];
+                highlightGroup.forEach(n => {
+                    const div = document.getElementById(`cell-${n.r}-${n.c}`);
+                    if (div) {
+                        div.classList.add('error-pulse');
+                        setTimeout(() => div.classList.remove('error-pulse'), 500);
+                    }
+                });
+            }
+        }
+
+        function cycleMark(cell) {
             if (cell.isRevealed) return;
-            cell.isFlagged = !cell.isFlagged;
-            flagsUsed += cell.isFlagged ? 1 : -1;
+            
             const cellDiv = document.getElementById(`cell-${cell.r}-${cell.c}`);
-            cellDiv.classList.toggle('flagged', cell.isFlagged);
+            
+            if (!cell.isFlagged && !cell.isUnsure) {
+                cell.isFlagged = true;
+                flagsUsed++;
+                cellDiv.classList.add('flagged');
+            } else if (cell.isFlagged) {
+                cell.isFlagged = false;
+                cell.isUnsure = true;
+                flagsUsed--;
+                cellDiv.classList.remove('flagged');
+                cellDiv.classList.add('unsure');
+            } else {
+                cell.isUnsure = false;
+                cellDiv.classList.remove('unsure');
+            }
+            
             updateMineCountDisplay();
         }
 
@@ -519,7 +586,7 @@ TOOL_OVERVIEW_END
 
         function revealCell(r, c) {
             const cell = board[r][c];
-            if (cell.isRevealed || cell.isFlagged) return;
+            if (cell.isRevealed || cell.isFlagged || cell.isUnsure) return;
             cell.isRevealed = true;
             const div = document.getElementById(`cell-${r}-${c}`);
             div.classList.add('revealed');
