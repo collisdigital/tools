@@ -2,13 +2,14 @@
 TOOL_OVERVIEW_START
 {
   "name": "NEON SWEEP // Tactical De-mining",
-  "description": "A high-fidelity, sci-fi themed Minesweeper game featuring a neon-noir aesthetic, responsive grid mechanics, persistent floating tactical controls, and advanced tactical chording.",
+  "description": "A high-fidelity, sci-fi themed Minesweeper game featuring a neon-noir aesthetic, responsive grid mechanics, and persistent floating tactical controls.",
   "functionality": {
+    "terminal_interface": "Replaced the burger icon with a 'TERMINAL' button and moved the restart functionality into the side menu.",
+    "intelligence_review_mode": "Users can close the game-over modal to inspect the revealed board and mine locations.",
+    "adaptive_sector_protocol": "Allows users to define custom grid dimensions (Rows/Cols) with auto-calculating mine density.",
     "tactical_chording_feedback": "Introduces visual feedback for chording failures: a 3x3 grid highlight pulses when flag requirements aren't met.",
     "ghost_signal_protocol": "Implements the 'Unsure' (?) mark within the marking cycle (None -> Flag -> Unsure).",
-    "tactical_chording": "Allows users to click revealed numbers to perform a 'Burst Scan' of surrounding cells. Ignores Unsure marks for safety.",
-    "guaranteed_safe_start": "Mines are generated only after the first scan move, ensuring the initial click is never a detonation.",
-    "rectangular_hud": "Mission header uses a full rectangular design for better visual alignment and clarity."
+    "guaranteed_safe_start": "Mines are generated only after the first scan move, ensuring the initial click is never a detonation."
   },
   "dependencies": ["Tailwind CSS", "Google Fonts (Orbitron, JetBrains Mono)"],
   "last_updated": "2024-05-24"
@@ -84,11 +85,6 @@ TOOL_OVERVIEW_END
                 min-width: 36px;
                 min-height: 36px;
             }
-        }
-
-        .grid-cell:hover:not(.revealed) {
-            background: rgba(0, 243, 255, 0.15);
-            box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.3);
         }
 
         .grid-cell.revealed {
@@ -168,6 +164,7 @@ TOOL_OVERVIEW_END
             transition: all 0.3s;
             text-transform: uppercase;
             letter-spacing: 2px;
+            font-size: 0.7rem;
         }
 
         .btn-sci-fi:hover {
@@ -181,6 +178,7 @@ TOOL_OVERVIEW_END
             background: rgba(22, 27, 34, 0.98);
             border-left: 2px solid var(--neon-cyan);
             box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
         }
 
         .menu-item {
@@ -235,7 +233,6 @@ TOOL_OVERVIEW_END
             box-shadow: 0 0 15px var(--neon-cyan);
         }
 
-        /* Chording Effects */
         @keyframes burst-effect {
             0% { outline: 0px solid var(--neon-cyan); outline-offset: 0; opacity: 1; }
             100% { outline: 10px solid transparent; outline-offset: 20px; opacity: 0; }
@@ -252,6 +249,52 @@ TOOL_OVERVIEW_END
             animation: error-pulse-anim 0.5s ease-out;
             z-index: 10;
         }
+
+        .sci-fi-input {
+            background: rgba(0, 243, 255, 0.05);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            color: var(--neon-cyan);
+            font-family: 'JetBrains Mono', monospace;
+            padding: 4px 8px;
+            width: 60px;
+            text-align: center;
+        }
+        .sci-fi-input:focus {
+            outline: none;
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
+        }
+
+        .close-modal-x {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--neon-cyan);
+            transition: all 0.3s;
+            line-height: 1;
+        }
+        .close-modal-x:hover {
+            color: #fff;
+            text-shadow: 0 0 10px var(--neon-cyan);
+            transform: scale(1.1);
+        }
+        
+        #terminal-btn {
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 2px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border: 1px solid var(--neon-cyan);
+            font-size: 0.7rem;
+            transition: all 0.3s;
+        }
+        #terminal-btn:hover {
+            background: var(--neon-cyan);
+            color: var(--bg-dark);
+            box-shadow: 0 0 15px var(--neon-cyan);
+        }
     </style>
 </head>
 <body class="flex flex-col items-center justify-start min-h-screen p-4 pb-24">
@@ -264,22 +307,7 @@ TOOL_OVERVIEW_END
                 <span id="mine-count" class="lcd-text text-xl md:text-2xl font-bold">010</span>
             </div>
             
-            <div class="flex items-center gap-4">
-                <div id="reset-btn" class="cursor-pointer hover:scale-110 active:scale-95 transition-transform p-1">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
-                        <path d="M21 3v5h-5"></path>
-                    </svg>
-                </div>
-
-                <div id="menu-trigger" class="cursor-pointer hover:text-white transition-colors p-1">
-                    <svg id="burger-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="3" y1="12" x2="21" y2="12"></line>
-                        <line x1="3" y1="6" x2="21" y2="6"></line>
-                        <line x1="3" y1="18" x2="21" y2="18"></line>
-                    </svg>
-                </div>
-            </div>
+            <button id="terminal-btn" class="active:scale-95">TERMINAL</button>
 
             <div class="flex flex-col items-end">
                 <span class="text-[9px] uppercase opacity-50 tracking-tighter">Mission Time</span>
@@ -288,27 +316,51 @@ TOOL_OVERVIEW_END
         </div>
     </div>
 
-    <div id="side-menu" class="fixed top-0 right-0 h-full w-64 z-[100] transform translate-x-full p-8 flex flex-col">
-        <div class="flex justify-between items-center mb-12">
+    <!-- Sidebar Menu -->
+    <div id="side-menu" class="fixed top-0 right-0 h-full w-72 z-[100] transform translate-x-full p-8 flex flex-col">
+        <div class="flex justify-between items-center mb-10">
             <h3 class="text-lg font-bold tracking-widest text-white">SYSTEM_OS</h3>
             <button id="menu-close" class="text-cyan-400 hover:text-white">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
         </div>
 
-        <div class="space-y-8">
+        <div class="space-y-6">
+            <!-- Global Reset -->
+            <section>
+                <h4 class="text-[10px] uppercase opacity-40 mb-4 tracking-[0.2em]">Primary Protocols</h4>
+                <button id="menu-restart-btn" class="menu-item w-full text-left py-3 px-2 text-xs text-yellow-400 border-yellow-400/20">RESTART_MISSION</button>
+            </section>
+
+            <!-- Preset Difficulties -->
             <section>
                 <h4 class="text-[10px] uppercase opacity-40 mb-4 tracking-[0.2em]">Sector Density</h4>
                 <div class="space-y-2">
-                    <button onclick="setDifficulty('easy')" id="diff-easy" class="menu-item w-full text-left py-3 px-2 active">ALPHA [9x9]</button>
-                    <button onclick="setDifficulty('medium')" id="diff-medium" class="menu-item w-full text-left py-3 px-2">GAMMA [16x16]</button>
-                    <button onclick="setDifficulty('hard')" id="diff-hard" class="menu-item w-full text-left py-3 px-2">OMEGA [30x16]</button>
+                    <button onclick="setDifficulty('easy')" id="diff-easy" class="menu-item w-full text-left py-3 px-2 active text-xs">ALPHA [9x9]</button>
+                    <button onclick="setDifficulty('medium')" id="diff-medium" class="menu-item w-full text-left py-3 px-2 text-xs">GAMMA [16x16]</button>
+                    <button onclick="setDifficulty('hard')" id="diff-hard" class="menu-item w-full text-left py-3 px-2 text-xs">OMEGA [30x16]</button>
+                </div>
+            </section>
+
+            <!-- Custom Configuration -->
+            <section class="pt-4 border-t border-cyan-500/20">
+                <h4 class="text-[10px] uppercase opacity-40 mb-6 tracking-[0.2em]">Adaptive Sector</h4>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] uppercase opacity-70">Rows</label>
+                        <input type="number" id="custom-rows" class="sci-fi-input" value="20" min="5" max="50">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] uppercase opacity-70">Cols</label>
+                        <input type="number" id="custom-cols" class="sci-fi-input" value="20" min="5" max="50">
+                    </div>
+                    <button onclick="setDifficulty('custom')" id="diff-custom" class="btn-sci-fi w-full mt-4">Initialize Sector</button>
                 </div>
             </section>
         </div>
 
-        <div class="mt-auto opacity-30 text-[10px] tracking-widest text-center">
-            V 2.8.5 // NEON_CORE
+        <div class="mt-auto pt-8 opacity-30 text-[10px] tracking-widest text-center">
+            V 2.9.5 // NEON_CORE
         </div>
     </div>
     
@@ -325,8 +377,10 @@ TOOL_OVERVIEW_END
         </div>
     </div>
 
+    <!-- Game Status Overlay -->
     <div id="status-modal" class="modal-overlay fixed inset-0 flex items-center justify-center hidden z-[110]">
-        <div class="text-center p-8 border-t border-b border-cyan-500 w-full max-w-sm">
+        <div id="modal-content" class="relative text-center p-8 border-t border-b border-cyan-500 w-full max-w-sm">
+            <div id="modal-close-x" class="close-modal-x" title="Intelligence Review">×</div>
             <h2 id="modal-title" class="text-3xl md:text-4xl font-bold mb-4 glitch-text italic">MISSION FAILED</h2>
             <p id="modal-desc" class="mb-8 opacity-70 text-sm">Hull integrity compromised. Reactor core lost.</p>
             <button onclick="initGame()" class="btn-sci-fi">Re-Engage</button>
@@ -335,15 +389,15 @@ TOOL_OVERVIEW_END
 
     <script>
         const gridElement = document.getElementById('grid');
-        const gridBorder = document.getElementById('grid-border');
         const mineCountElement = document.getElementById('mine-count');
         const timerElement = document.getElementById('timer');
-        const resetBtn = document.getElementById('reset-btn');
+        const terminalBtn = document.getElementById('terminal-btn');
+        const menuRestartBtn = document.getElementById('menu-restart-btn');
         const modal = document.getElementById('status-modal');
         const modalTitle = document.getElementById('modal-title');
         const modalDesc = document.getElementById('modal-desc');
+        const modalCloseX = document.getElementById('modal-close-x');
         
-        const menuTrigger = document.getElementById('menu-trigger');
         const menuClose = document.getElementById('menu-close');
         const sideMenu = document.getElementById('side-menu');
         const menuBackdrop = document.getElementById('menu-backdrop');
@@ -380,18 +434,32 @@ TOOL_OVERVIEW_END
             }
         }
 
-        menuTrigger.onclick = () => toggleMenu(true);
+        terminalBtn.onclick = () => toggleMenu(true);
         menuClose.onclick = () => toggleMenu(false);
         menuBackdrop.onclick = () => toggleMenu(false);
+        
+        modalCloseX.onclick = () => {
+            modal.classList.add('hidden');
+        };
 
         function setDifficulty(level) {
-            rows = configs[level].r;
-            cols = configs[level].c;
-            minesCount = configs[level].m;
+            if (level === 'custom') {
+                const r = parseInt(document.getElementById('custom-rows').value) || 20;
+                const c = parseInt(document.getElementById('custom-cols').value) || 20;
+                rows = Math.min(Math.max(r, 5), 50);
+                cols = Math.min(Math.max(c, 5), 50);
+                minesCount = Math.floor(rows * cols * 0.156);
+            } else {
+                rows = configs[level].r;
+                cols = configs[level].c;
+                minesCount = configs[level].m;
+            }
+
             ['easy', 'medium', 'hard'].forEach(l => {
                 const el = document.getElementById(`diff-${l}`);
                 if (el) el.classList.toggle('active', l === level);
             });
+            
             toggleMenu(false);
             initGame();
         }
@@ -415,7 +483,10 @@ TOOL_OVERVIEW_END
             gridElement.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
             createEmptyBoard();
             renderBoard();
+            toggleMenu(false); // Close menu if game starts from there
         }
+
+        menuRestartBtn.onclick = initGame;
 
         function createEmptyBoard() {
             board = Array.from({ length: rows }, (_, r) => 
@@ -435,7 +506,8 @@ TOOL_OVERVIEW_END
             while (minesPlaced < minesCount) {
                 let r = Math.floor(Math.random() * rows);
                 let c = Math.floor(Math.random() * cols);
-                if (!board[r][c].isMine && (r !== safeR || c !== safeC)) {
+                const isSafeZone = Math.abs(r - safeR) <= 1 && Math.abs(c - safeC) <= 1;
+                if (!board[r][c].isMine && !isSafeZone) {
                     board[r][c].isMine = true;
                     minesPlaced++;
                 }
@@ -470,7 +542,7 @@ TOOL_OVERVIEW_END
                     const div = document.createElement('div');
                     div.className = 'grid-cell';
                     div.id = `cell-${r}-${c}`;
-                    div.addEventListener('click', (e) => handleCellClick(r, c, false));
+                    div.addEventListener('click', () => handleCellClick(r, c, false));
                     div.addEventListener('contextmenu', (e) => {
                         e.preventDefault();
                         handleCellClick(r, c, true);
@@ -528,7 +600,6 @@ TOOL_OVERVIEW_END
             const flagCount = neighbors.filter(n => n.isFlagged).length;
 
             if (flagCount === cell.neighborCount) {
-                // Success: Execute Tactical Burst
                 const div = document.getElementById(`cell-${cell.r}-${cell.c}`);
                 div.classList.add('bursting');
                 setTimeout(() => div.classList.remove('bursting'), 400);
@@ -544,7 +615,6 @@ TOOL_OVERVIEW_END
                 });
                 checkWin();
             } else {
-                // Failure: Provide 3x3 Grid Error Feedback
                 const highlightGroup = [...neighbors, cell];
                 highlightGroup.forEach(n => {
                     const div = document.getElementById(`cell-${n.r}-${n.c}`);
@@ -558,9 +628,7 @@ TOOL_OVERVIEW_END
 
         function cycleMark(cell) {
             if (cell.isRevealed) return;
-            
             const cellDiv = document.getElementById(`cell-${cell.r}-${cell.c}`);
-            
             if (!cell.isFlagged && !cell.isUnsure) {
                 cell.isFlagged = true;
                 flagsUsed++;
@@ -575,7 +643,6 @@ TOOL_OVERVIEW_END
                 cell.isUnsure = false;
                 cellDiv.classList.remove('unsure');
             }
-            
             updateMineCountDisplay();
         }
 
@@ -637,7 +704,6 @@ TOOL_OVERVIEW_END
             setTimeout(() => modal.classList.remove('hidden'), 500);
         }
 
-        resetBtn.addEventListener('click', initGame);
         window.onload = initGame;
     </script>
 </body>
