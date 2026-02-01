@@ -8,7 +8,7 @@ build:
 
 # Serve the site locally
 serve: build
-    python -m http.server --directory dist
+    python server.py
 
 # Serve the tools directory directly for development
 dev:

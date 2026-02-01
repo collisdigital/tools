@@ -12,6 +12,12 @@ Inspired by https://github.com/simonw/tools
 
 ## Local Development
 
+### Setup
+Install the necessary dependencies:
+```bash
+pip install -r requirements.txt
+```
+
 ### Using Just (Recommended)
 This project uses [just](https://github.com/casey/just) as a command runner for convenience.
 
@@ -29,9 +35,18 @@ python scripts/generate_index.py
 ### Serving Locally
 After generating the site, you can preview it by serving the `dist/` directory:
 
-#### Using Python
+#### Using Starlette
 ```bash
-python -m http.server --directory dist
+python server.py
+```
+You can configure the host and port using environment variables:
+- `HOST`: The host to bind to (default: `0.0.0.0`)
+- `PORT`: The port to listen on (default: `8000`)
+- `SERVE_DIR`: The directory to serve (default: `dist`)
+
+Example:
+```bash
+SERVE_DIR=tools HOST=127.0.0.1 PORT=8080 python server.py
 ```
 
 #### Using Node.js (npx)
