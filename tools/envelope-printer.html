@@ -1,0 +1,336 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "Envelope PDF Generator",
+  "description": "A standalone HTML/React tool for formatting and printing address labels on A4 envelopes. It generates a PDF with centered, left-aligned text suitable for direct printing.",
+  "functionality": {
+    "live_preview": "Provides a real-time visual representation of the address on an A4 landscape envelope.",
+    "pdf_generation": "Generates a downloadable PDF file using jsPDF, optimized for print with correct margins and font scaling.",
+    "customization": "Allows users to edit the address text and adjust the font size via an interactive slider."
+  },
+  "dependencies": ["react", "react-dom", "babel", "tailwindcss", "jspdf"],
+  "last_updated": "2026-02-07"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Envelope PDF Generator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        /* Custom scrollbar for the textarea */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background: #888; 
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover {
+            background: #555; 
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Icons (Implemented as SVG components for standalone stability) ---
+        
+        const PrinterIcon = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+        );
+
+        const DownloadIcon = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+        );
+
+        const TypeIcon = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                <line x1="9" y1="20" x2="15" y2="20"></line>
+                <line x1="12" y1="4" x2="12" y2="20"></line>
+            </svg>
+        );
+
+        const FileTextIcon = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+        );
+
+        const AlertCircleIcon = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+        );
+
+        // --- Main Application Component ---
+
+        const EnvelopeApp = () => {
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState('');
+            const [text, setText] = useState(
+                "A. N. Other\n123 Mockingbird Lane\nFictional Town\nMadeupshire\nMK1 9ZZ"
+            );
+            const [fontSize, setFontSize] = useState(28);
+
+            useEffect(() => {
+                // Check if jsPDF loaded correctly from the script tag
+                if (window.jspdf) {
+                    setLoading(false);
+                } else {
+                    // Slight delay to allow script to parse if running locally very fast
+                    const timer = setTimeout(() => {
+                        if (window.jspdf) {
+                            setLoading(false);
+                        } else {
+                            setError('PDF Library (jsPDF) failed to load. Please check your internet connection.');
+                            setLoading(false);
+                        }
+                    }, 500);
+                    return () => clearTimeout(timer);
+                }
+            }, []);
+
+            const generatePDF = () => {
+                if (!window.jspdf) {
+                    setError('PDF library not loaded yet.');
+                    return;
+                }
+
+                const { jsPDF } = window.jspdf;
+                // A4 Landscape: 297mm x 210mm
+                const doc = new jsPDF({
+                    orientation: 'landscape',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const pageWidth = doc.internal.pageSize.getWidth(); // 297
+                const pageHeight = doc.internal.pageSize.getHeight(); // 210
+                
+                // Split text into lines
+                const lines = text.split('\n');
+
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(fontSize);
+
+                // --- LOGIC FOR LEFT ALIGNED BLOCK, CENTERED ON PAGE ---
+                
+                // 1. Find the width of the longest line to determine block width
+                let maxLineWidth = 0;
+                lines.forEach(line => {
+                    const width = doc.getTextWidth(line);
+                    if (width > maxLineWidth) maxLineWidth = width;
+                });
+
+                // 2. Calculate the starting X position to center the entire block
+                const xPos = (pageWidth - maxLineWidth) / 2;
+
+                // 3. Calculate vertical centering
+                // Approximate height of a line in mm roughly equals font size in pt * 0.3527 * line spacing factor
+                const lineHeightMm = fontSize * 0.3527 * 1.2;
+                const totalHeight = lines.length * lineHeightMm;
+                
+                // Start Y position (centering vertically)
+                // We add lineHeightMm because jsPDF text is drawn from the baseline up, 
+                // but the coordinate system is top-down. This approximation centers it visually.
+                const startY = (pageHeight - totalHeight) / 2 + (lineHeightMm * 0.8); 
+
+                lines.forEach((line, index) => {
+                    // Draw text at the calculated X position (left aligned relative to the block)
+                    doc.text(line, xPos, startY + (index * lineHeightMm));
+                });
+
+                doc.save('envelope_label.pdf');
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
+                    {/* Header */}
+                    <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+                        <div className="flex items-center gap-2 text-indigo-700">
+                            <PrinterIcon size={28} />
+                            <h1 className="text-xl font-bold tracking-tight">Envelope PDF Generator</h1>
+                        </div>
+                        <div className="text-sm text-gray-500 hidden sm:block">
+                            Optimized for A4 Landscape
+                        </div>
+                    </header>
+
+                    <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        
+                        {/* Editor Column */}
+                        <div className="flex flex-col gap-6">
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                    <TypeIcon size={20} className="text-gray-500" />
+                                    Address Details
+                                </h2>
+                                
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Label Text
+                                </label>
+                                <textarea
+                                    value={text}
+                                    onChange={(e) => setText(e.target.value)}
+                                    className="w-full h-48 p-4 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm resize-none"
+                                    placeholder="Enter address here..."
+                                />
+                                
+                                <div className="mt-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Font Size (pt)
+                                    </label>
+                                    <input 
+                                        type="range" 
+                                        min="12" 
+                                        max="72" 
+                                        value={fontSize} 
+                                        onChange={(e) => setFontSize(Number(e.target.value))}
+                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>12pt</span>
+                                        <span className="font-bold text-indigo-600">{fontSize}pt</span>
+                                        <span>72pt</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100 flex items-start gap-3">
+                                <AlertCircleIcon className="text-indigo-600 shrink-0 mt-0.5" size={20} />
+                                <div className="text-sm text-indigo-800">
+                                    <p className="font-semibold mb-1">Printing Tip</p>
+                                    When printing the downloaded PDF, ensure your printer settings are set to <strong>"Actual Size"</strong> or <strong>"Scale 100%"</strong> and that the orientation matches the paper (Landscape).
+                                </div>
+                            </div>
+                            
+                            {error && (
+                                <div className="bg-red-50 rounded-xl p-4 border border-red-100 text-red-700 text-sm">
+                                    {error}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Preview Column */}
+                        <div className="flex flex-col gap-6">
+                            <div className="bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-1 overflow-hidden flex flex-col items-center justify-center relative">
+                                
+                                <div className="w-full bg-gray-700 text-gray-300 py-2 px-4 text-xs font-mono uppercase tracking-wider flex justify-between items-center">
+                                    <span>Preview (A4 Landscape)</span>
+                                    <FileTextIcon size={14} />
+                                </div>
+
+                                {/* Canvas/Paper Simulation */}
+                                <div className="w-full p-4 md:p-8 overflow-auto flex items-center justify-center bg-gray-800/50">
+                                    {/* Aspect Ratio Logic: 
+                                        A4 is 297mm x 210mm (~1.414 ratio).
+                                        We use a fixed aspect ratio container.
+                                    */}
+                                    <div 
+                                        className="bg-white shadow-2xl relative transition-all duration-300 ease-in-out"
+                                        style={{
+                                            aspectRatio: '297/210',
+                                            width: '100%',
+                                            maxWidth: '600px',
+                                        }}
+                                    >
+                                        {/* Flex center centers the BLOCK.
+                                            The inner div is inline-block to shrink wrap the text width,
+                                            and text-left aligns the text inside that block.
+                                        */}
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
+                                            <div className="inline-block text-left">
+                                                {text.split('\n').map((line, i) => (
+                                                    <div 
+                                                        key={i} 
+                                                        className="font-bold text-gray-900 leading-tight whitespace-pre-wrap break-words"
+                                                        style={{ 
+                                                            fontSize: `${Math.max(fontSize * 0.4, 10)}px`, // Scaled down for screen preview roughly
+                                                            fontFamily: 'Helvetica, Arial, sans-serif'
+                                                        }}
+                                                    >
+                                                        {line || '\u00A0'}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Guides (Visual Only) */}
+                                        <div className="absolute top-0 left-1/2 w-px h-4 bg-red-300/50 -translate-x-1/2"></div>
+                                        <div className="absolute bottom-0 left-1/2 w-px h-4 bg-red-300/50 -translate-x-1/2"></div>
+                                        <div className="absolute left-0 top-1/2 h-px w-4 bg-red-300/50 -translate-y-1/2"></div>
+                                        <div className="absolute right-0 top-1/2 h-px w-4 bg-red-300/50 -translate-y-1/2"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={generatePDF}
+                                disabled={loading}
+                                className={`
+                                    w-full py-4 px-6 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-3 transition-all transform hover:-translate-y-1
+                                    ${loading 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-500/30 active:scale-95'
+                                    }
+                                `}
+                            >
+                                {loading ? (
+                                    <span>Loading Library...</span>
+                                ) : (
+                                    <>
+                                        <DownloadIcon size={24} />
+                                        Download PDF Label
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<EnvelopeApp />);
+    </script>
+</body>
+</html>
