@@ -24,8 +24,8 @@ TOOL_OVERVIEW_END
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -55,6 +55,12 @@ TOOL_OVERVIEW_END
     <div id="root"></div>
 
     <script type="text/babel">
+        // Wait for React to be ready
+        if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+            document.body.innerHTML = '<div style="color:red; padding:20px; font-family: sans-serif;">Error: React libraries failed to load from CDN. Please check your internet connection.</div>';
+            throw new Error('React or ReactDOM failed to load');
+        }
+
         const { useState, useEffect } = React;
 
         // --- Icons (Implemented as SVG components for standalone stability) ---

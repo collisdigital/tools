@@ -217,9 +217,19 @@ def main():
 
         footer = get_footer_html(f_name, is_index=False)
         
-        if "</main>" in content:
+        # Determine injection point
+        # If the file is a React app (uses babel), injecting into </main> might break JSX
+        # So we default to </body> for babel files.
+        if 'type="text/babel"' in content or "type='text/babel'" in content:
+             injection_target = "</body>"
+        elif "</main>" in content:
+             injection_target = "</main>"
+        else:
+             injection_target = "</body>"
+
+        if injection_target == "</main>" and "</main>" in content:
             parts = content.rsplit("</main>", 1)
-            new_content = parts[0] + footer + "\n</main>" + parts[1]
+            new_content = parts[0] + "</main>\n" + footer + parts[1]
         elif "</body>" in content:
             parts = content.rsplit("</body>", 1)
             new_content = parts[0] + footer + "\n</body>" + parts[1]
