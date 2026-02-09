@@ -6,100 +6,112 @@
     <title>Chris Collis' Tools</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M176 88l0 40 160 0 0-40c0-4.4-3.6-8-8-8L184 80c-4.4 0-8 3.6-8 8zm-48 40l0-40c0-30.9 25.1-56 56-56l144 0c30.9 0 56 25.1 56 56l0 40 28.1 0c12.7 0 24.9 5.1 33.9 14.1l51.9 51.9c9 9 14.1 21.2 14.1 33.9l0 92.1-128 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32L0 320l0-92.1c0-12.7 5.1-24.9 14.1-33.9l51.9-51.9c9-9 21.2-14.1 33.9-14.1l28.1 0zM0 416l0-64 128 0c0 17.7 14.3 32 32 32s32-14.3 32-32l128 0c0 17.7 14.3 32 32 32s32-14.3 32-32l128 0 0 64c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64z'/%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        /* View mode transitions */
+        .tool-card { transition: box-shadow 0.2s ease; }
+        /* List view overrides applied via a parent class */
+        .view-list .tool-card { border-radius: 0.375rem; }
+        .view-list .tool-card .tool-meta,
+        .view-list .tool-card .tool-footer { display: none; }
+        .view-list .tool-card p { display: none; }
+        .view-list .tool-card h2 { font-size: 0.9375rem; }
+        .view-list .tool-card { padding: 0.75rem 1rem; }
+        .view-list .tool-card > div:first-child { margin-bottom: 0; }
+        /* Active toggle button */
+        .view-toggle-active { background-color: #eff6ff; color: #2563eb; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col">
-    <div class="flex-grow container mx-auto px-4 py-12 max-w-4xl">
-        <header class="mb-12 text-center">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">Chris Collis' Tools</h1>
-            <p class="text-gray-600 mb-8">A collection of HTML projects in this repository.</p>
+<body class="bg-gray-50 min-h-screen">
+    <div class="max-w-3xl mx-auto px-4 py-10 sm:px-6 sm:py-12">
+        <header class="mb-8 text-center">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-1">Chris Collis' Tools</h1>
+            <p class="text-gray-500 text-sm mb-6">A collection of standalone HTML tools.</p>
 
-            <div class="relative max-w-md mx-auto">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-                    </svg>
+            <div class="flex items-center gap-2 max-w-lg mx-auto">
+                <div class="relative flex-1 min-w-0">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                    <input type="text" id="toolSearch" placeholder="Search tools..." class="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" autocomplete="off">
+                    <button id="clearSearch" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden" aria-label="Clear search">
+                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+                    </button>
                 </div>
-                <input type="text" id="toolSearch" placeholder="Search tools..." class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" autocomplete="off">
-                <button id="clearSearch" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none hidden">
-                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                    </svg>
-                </button>
+                <div class="flex border border-gray-300 rounded-lg overflow-hidden bg-white flex-shrink-0">
+                    <button id="viewGrid" class="p-2 view-toggle-active" title="Grid view" aria-label="Grid view">
+                        <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    </button>
+                    <button id="viewList" class="p-2" title="List view" aria-label="List view">
+                        <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                    </button>
+                </div>
             </div>
         </header>
 
-        <main class="grid grid-cols-1 md:grid-cols-2 gap-6" id="toolsGrid">
-            <div id="noResults" class="hidden col-span-1 md:col-span-2 text-center py-12 text-gray-500">
-                <p class="text-lg">No tools found matching your search.</p>
-            </div>
+        <main id="toolsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {{ LINKS_PLACEHOLDER }}
         </main>
+
+        <p id="noResults" class="hidden text-center py-12 text-gray-400 text-sm">No tools found matching your search.</p>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const searchInput = document.getElementById('toolSearch');
-            const clearButton = document.getElementById('clearSearch');
-            const toolsGrid = document.getElementById('toolsGrid');
+        (() => {
+            const grid = document.getElementById('toolsGrid');
+            const cards = grid.querySelectorAll('.tool-card');
+            const search = document.getElementById('toolSearch');
+            const clear = document.getElementById('clearSearch');
             const noResults = document.getElementById('noResults');
+            const btnGrid = document.getElementById('viewGrid');
+            const btnList = document.getElementById('viewList');
 
-            // Get all tool cards (anchor tags)
-            const getToolCards = () => Array.from(toolsGrid.querySelectorAll('a'));
+            // --- View Toggle ---
+            function setView(mode) {
+                const isList = mode === 'list';
+                grid.classList.toggle('view-list', isList);
+                grid.classList.toggle('grid-cols-1', isList);
+                grid.classList.toggle('sm:grid-cols-2', !isList);
+                grid.classList.toggle('gap-4', !isList);
+                grid.classList.toggle('gap-2', isList);
 
-            const performSearch = () => {
-                const searchTerm = searchInput.value.toLowerCase().trim();
-                const toolCards = getToolCards();
-                let visibleCount = 0;
+                btnGrid.classList.toggle('view-toggle-active', !isList);
+                btnList.classList.toggle('view-toggle-active', isList);
 
-                // Toggle clear button
-                if (searchTerm.length > 0) {
-                    clearButton.classList.remove('hidden');
-                } else {
-                    clearButton.classList.add('hidden');
-                }
+                try { localStorage.setItem('toolsViewMode', mode); } catch(e) {}
+            }
 
-                // Requirement: Only filter after 3 or more characters
-                const shouldFilter = searchTerm.length >= 3;
+            btnGrid.addEventListener('click', () => setView('grid'));
+            btnList.addEventListener('click', () => setView('list'));
 
-                toolCards.forEach(card => {
-                    if (!shouldFilter) {
-                        // Show all if search term is too short
-                        card.classList.remove('hidden');
-                        visibleCount++;
-                    } else {
-                        // Filter based on title
-                        const titleElement = card.querySelector('h2');
-                        const title = titleElement ? titleElement.textContent.toLowerCase() : '';
+            let saved = null;
+            try { saved = localStorage.getItem('toolsViewMode'); } catch(e) {}
+            if (!saved) saved = window.innerWidth < 640 ? 'list' : 'grid';
+            setView(saved);
 
-                        if (title.includes(searchTerm)) {
-                            card.classList.remove('hidden');
-                            visibleCount++;
-                        } else {
-                            card.classList.add('hidden');
-                        }
-                    }
+            // --- Search ---
+            function filterTools() {
+                const term = search.value.toLowerCase().trim();
+                clear.classList.toggle('hidden', term.length === 0);
+
+                let visible = 0;
+                cards.forEach(card => {
+                    const title = card.dataset.title.toLowerCase();
+                    const show = term.length < 2 || title.includes(term);
+                    card.classList.toggle('hidden', !show);
+                    if (show) visible++;
                 });
+                noResults.classList.toggle('hidden', visible > 0);
+            }
 
-                // Show/Hide "No Results" message
-                if (visibleCount === 0) {
-                    noResults.classList.remove('hidden');
-                } else {
-                    noResults.classList.add('hidden');
-                }
-            };
-
-            searchInput.addEventListener('input', performSearch);
-
-            clearButton.addEventListener('click', () => {
-                searchInput.value = '';
-                searchInput.focus();
-                performSearch();
+            search.addEventListener('input', filterTools);
+            clear.addEventListener('click', () => {
+                search.value = '';
+                filterTools();
+                search.focus();
             });
-        });
+        })();
     </script>
 </body>
 </html>
