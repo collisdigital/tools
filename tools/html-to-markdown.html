@@ -1,0 +1,340 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "HTML to Markdown Converter",
+  "description": "A browser-based tool that converts rich text and HTML content into clean Markdown syntax, preserving headers, lists, links, and tables.",
+  "functionality": {
+    "rich_text_input": "Accepts direct pasting of rich text from external sources (Word, Google Docs, Web) using a contenteditable interface.",
+    "table_processing": "Parses HTML tables and converts them into standard Markdown pipe table format.",
+    "clean_conversion": "Strips unnecessary HTML tags while preserving structural elements like headings, lists, and emphasis."
+  },
+  "dependencies": ["Tailwind CSS", "Font Awesome", "Google Fonts"],
+  "last_updated": "2026-02-09"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML to Markdown Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .mono-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Custom scrollbar for textareas */
+        textarea::-webkit-scrollbar, div::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        textarea::-webkit-scrollbar-track, div::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb, div::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover, div::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Placeholder logic for contenteditable div */
+        [contenteditable]:empty:before {
+            content: attr(placeholder);
+            color: #94a3b8; /* slate-400 */
+            pointer-events: none;
+            display: block; /* Ensures it appears on its own line */
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md">
+                <i class="fa-solid fa-code"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-slate-800 tracking-tight">HTML to Markdown</h1>
+                <p class="text-xs text-slate-500 font-medium">Rich Text & Table Converter</p>
+            </div>
+        </div>
+        <div class="flex gap-3">
+             <button onclick="clearAll()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                <i class="fa-solid fa-trash-can mr-2"></i>Clear
+            </button>
+            <button onclick="copyMarkdown()" class="px-4 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-900 rounded-lg shadow transition-all active:scale-95 flex items-center">
+                <i class="fa-regular fa-copy mr-2"></i> Copy Markdown
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
+        
+        <!-- Input Section -->
+        <div class="flex-1 flex flex-col h-full border-b md:border-b-0 md:border-r border-slate-200 bg-white relative group">
+            <div class="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-100">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Rich Text Input</span>
+                <span class="text-xs text-slate-400">Paste content from web/docs</span>
+            </div>
+            
+            <!-- Changed to contenteditable DIV to support Rich Paste -->
+            <div 
+                id="inputHtml" 
+                contenteditable="true"
+                class="flex-1 w-full p-6 focus:outline-none text-sm leading-relaxed text-slate-700 overflow-y-auto"
+                placeholder="Paste your rich text here... (Headers, Bold, Tables, etc.)"
+            ></div>
+            
+            <!-- Convert Button (Floating on Mobile) -->
+            <div class="absolute bottom-6 right-6 z-20 md:hidden">
+                <button onclick="convert()" class="w-14 h-14 bg-indigo-600 rounded-full text-white shadow-lg flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-arrow-down"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Controls (Center column for Desktop) -->
+        <div class="hidden md:flex flex-col items-center justify-center bg-slate-50 border-r border-slate-200 px-2 z-10 w-16">
+            <button onclick="convert()" class="w-10 h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110 active:scale-90" title="Convert">
+                <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+
+        <!-- Output Section -->
+        <div class="flex-1 flex flex-col h-full bg-slate-50/50">
+            <div class="flex items-center justify-between px-4 py-2 bg-slate-100 border-b border-slate-200">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Markdown Output</span>
+                <div id="copyFeedback" class="hidden text-xs text-green-600 font-medium animate-pulse">
+                    Copied to clipboard!
+                </div>
+            </div>
+            <textarea 
+                id="outputMd" 
+                readonly
+                class="flex-1 w-full p-6 resize-none focus:outline-none mono-font text-sm leading-relaxed text-slate-800 bg-slate-50/30"
+                placeholder="# Markdown will appear here..."
+            ></textarea>
+        </div>
+    </main>
+
+    <script>
+        // --- Core Converter Logic ---
+
+        function convert() {
+            // Get innerHTML to capture the pasted rich formatting
+            const htmlInput = document.getElementById('inputHtml').innerHTML;
+            
+            // Check if there is actual text content (ignores empty HTML tags)
+            if (!document.getElementById('inputHtml').innerText.trim()) return;
+
+            // Use DOMParser to safely parse the HTML string
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlInput, 'text/html');
+            
+            // Start conversion from the body
+            let markdown = processNode(doc.body);
+            
+            // Post-processing cleanup
+            markdown = markdown
+                .replace(/\n{3,}/g, '\n\n') // Collapse excessive newlines
+                .trim();
+
+            document.getElementById('outputMd').value = markdown;
+        }
+
+        // Recursive function to process DOM nodes
+        function processNode(node) {
+            if (!node) return '';
+
+            // 1. Text Nodes
+            if (node.nodeType === 3) {
+                // Return text content.
+                let text = node.textContent;
+                // If parent is pre, return as is
+                if (node.parentNode && node.parentNode.tagName === 'PRE') return text;
+                
+                // Collapse whitespace for normal text
+                return text.replace(/\s+/g, ' ');
+            }
+
+            // 2. Element Nodes
+            if (node.nodeType === 1) {
+                const tagName = node.tagName.toLowerCase();
+                
+                // Skip non-visible or script/style tags
+                if (['script', 'style', 'meta', 'link', 'noscript'].includes(tagName)) {
+                    return '';
+                }
+
+                // Handle Children
+                let content = '';
+                const children = Array.from(node.childNodes);
+                
+                // Special handling for pre/code to preserve whitespace
+                if (tagName === 'pre') {
+                    content = node.textContent;
+                } else {
+                    children.forEach(child => {
+                        content += processNode(child);
+                    });
+                }
+
+                // 3. Switch on Tag Name for Markdown Syntax
+                switch (tagName) {
+                    // Headings
+                    case 'h1': return `\n# ${content.trim()}\n\n`;
+                    case 'h2': return `\n## ${content.trim()}\n\n`;
+                    case 'h3': return `\n### ${content.trim()}\n\n`;
+                    case 'h4': return `\n#### ${content.trim()}\n\n`;
+                    case 'h5': return `\n##### ${content.trim()}\n\n`;
+                    case 'h6': return `\n###### ${content.trim()}\n\n`;
+
+                    // Block elements
+                    case 'p': return `\n${content.trim()}\n\n`;
+                    case 'div': return `\n${content.trim()}\n`; // Divs often used for layout, just pass content with newlines
+                    case 'br': return '  \n'; // Two spaces for MD line break
+                    case 'hr': return '\n---\n\n';
+
+                    // Text Formatting
+                    case 'b':
+                    case 'strong':
+                        return content.trim() ? `**${content.trim()}**` : '';
+                    case 'i':
+                    case 'em':
+                        return content.trim() ? `*${content.trim()}*` : '';
+                    case 'u':
+                    case 'ins': 
+                        return content.trim(); 
+                    case 's':
+                    case 'del':
+                    case 'strike':
+                        return content.trim() ? `~~${content.trim()}~~` : '';
+                    case 'code':
+                        if (node.parentNode.tagName === 'PRE') return content;
+                        return `\`${content}\``;
+                    case 'pre':
+                        return `\n\`\`\`\n${content}\n\`\`\`\n\n`;
+                    case 'blockquote':
+                        return `\n> ${content.trim().split('\n').join('\n> ')}\n\n`;
+
+                    // Links & Images
+                    case 'a':
+                        const href = node.getAttribute('href') || '#';
+                        return `[${content.trim()}](${href})`;
+                    case 'img':
+                        const alt = node.getAttribute('alt') || 'image';
+                        const src = node.getAttribute('src') || '';
+                        return `![${alt}](${src})`;
+
+                    // Lists
+                    case 'ul':
+                    case 'ol':
+                        return `\n${processList(node)}\n`;
+                    case 'li':
+                        return content.trim(); 
+
+                    // Tables
+                    case 'table':
+                        return `\n${processTable(node)}\n\n`;
+
+                    // Fallback for generic containers
+                    default:
+                        return content;
+                }
+            }
+            return '';
+        }
+
+        // Helper to process lists
+        function processList(listNode) {
+            const items = Array.from(listNode.children);
+            const isOrdered = listNode.tagName.toLowerCase() === 'ol';
+            
+            return items.map((item, index) => {
+                if (item.tagName.toLowerCase() !== 'li') return '';
+                
+                let itemContent = '';
+                item.childNodes.forEach(child => {
+                    if (child.tagName === 'UL' || child.tagName === 'OL') {
+                        const nestedList = processList(child);
+                        itemContent += '\n' + nestedList.split('\n').map(l => '  ' + l).join('\n');
+                    } else {
+                        itemContent += processNode(child);
+                    }
+                });
+
+                const prefix = isOrdered ? `${index + 1}. ` : '- ';
+                return `${prefix}${itemContent.trim()}`;
+            }).join('\n');
+        }
+
+        // Helper to process Tables
+        function processTable(tableNode) {
+            const rows = Array.from(tableNode.querySelectorAll('tr'));
+            if (rows.length === 0) return '';
+
+            let markdownTable = '';
+            
+            const tableData = rows.map(row => {
+                const cells = Array.from(row.querySelectorAll('th, td'));
+                return cells.map(cell => {
+                    return processNode(cell).replace(/(\r\n|\n|\r)/gm, " ").trim();
+                });
+            });
+
+            if (tableData.length === 0) return '';
+            const colCount = tableData[0].length;
+            if (colCount === 0) return '';
+
+            const headerRow = tableData[0];
+            markdownTable += '| ' + headerRow.join(' | ') + ' |\n';
+
+            const separator = Array(colCount).fill('---');
+            markdownTable += '| ' + separator.join(' | ') + ' |\n';
+
+            for (let i = 1; i < tableData.length; i++) {
+                const row = tableData[i];
+                while(row.length < colCount) row.push('');
+                markdownTable += '| ' + row.join(' | ') + ' |\n';
+            }
+
+            return markdownTable;
+        }
+
+        // --- UI Interactions ---
+
+        function copyMarkdown() {
+            const output = document.getElementById('outputMd');
+            output.select();
+            document.execCommand('copy'); 
+            
+            const feedback = document.getElementById('copyFeedback');
+            feedback.classList.remove('hidden');
+            setTimeout(() => {
+                feedback.classList.add('hidden');
+            }, 2000);
+        }
+
+        function clearAll() {
+            if(confirm('Are you sure you want to clear both fields?')) {
+                document.getElementById('inputHtml').innerHTML = '';
+                document.getElementById('outputMd').value = '';
+            }
+        }
+    </script>
+</body>
+</html>
