@@ -1,0 +1,420 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "UK Salary Increase Calculator",
+  "description": "A comprehensive take-home pay comparison tool designed for the UK tax system (2023-2027), allowing users to analyze the impact of raises, pension contributions, and tax year changes on their net income.",
+  "functionality": {
+    "dynamic_comparison": "Compare two distinct financial scenarios with side-by-side breakdowns of tax, NI, and pension deductions.",
+    "tax_taper_logic": "Accurately handles the Personal Allowance taper (60% tax trap) using Adjusted Net Income after pension contributions.",
+    "multi_view_breakdown": "Toggle results between annual, monthly, weekly, and hourly pay based on a standard 37.5-hour week.",
+    "smart_inputs": "Includes real-time comma formatting for currency and bi-directional calculation between salary and percentage increases.",
+    "local_persistence": "Automatically saves and restores user inputs using browser localStorage."
+  },
+  "dependencies": ["Tailwind CSS (CDN)", "Google Fonts (Inter)"],
+  "last_updated": "2026-02-24"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Salary Increase Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .card { transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+        /* Remove highlighting on mobile tap */
+        input, select, button { -webkit-tap-highlight-color: transparent; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-900">UK Take-Home Pay Comparison</h1>
+            <p class="text-slate-600 mt-2">Compare current and future earnings with accurate tax data.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- Scenario 1 -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Scenario A (Current)
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Annual Salary (£)</label>
+                        <input type="text" id="salA" value="35,000" inputmode="decimal" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Tax Year</label>
+                        <select id="yearA" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                            <option value="2023">2023/24</option>
+                            <option value="2024" selected>2024/25</option>
+                            <option value="2025">2025/26</option>
+                            <option value="2026">2026/27</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scenario 2 -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <span class="w-2 h-2 bg-emerald-500 rounded-full"></span> Scenario B (New)
+                </h2>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="col-span-1">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Annual Salary (£)</label>
+                            <input type="text" id="salB" value="45,000" inputmode="decimal" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium">
+                        </div>
+                        <div class="col-span-1">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Increase from A (%)</label>
+                            <div class="relative">
+                                <input type="text" id="percentIncrease" step="0.1" inputmode="decimal" placeholder="e.g. 10" class="w-full p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder:text-emerald-300 font-medium">
+                                <span class="absolute right-3 top-2.5 text-emerald-400">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Tax Year</label>
+                        <select id="yearB" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all">
+                            <option value="2023">2023/24</option>
+                            <option value="2024">2024/25</option>
+                            <option value="2025">2025/26</option>
+                            <option value="2026" selected>2026/27</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Settings -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row md:items-end gap-6">
+            <div class="flex-1">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Pension Contribution (%)</label>
+                <input type="text" id="pension" value="5" inputmode="decimal" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 outline-none transition-all font-medium">
+                <p class="text-xs text-slate-500 mt-2 italic">* Assumes "Net Pay" arrangement (taken before tax).</p>
+            </div>
+            <div class="flex-1">
+                <label class="block text-sm font-medium text-slate-700 mb-1">View Results By</label>
+                <div class="grid grid-cols-4 gap-2 bg-slate-100 p-1 rounded-xl">
+                    <button onclick="changeView('annual')" id="btn-annual" class="view-btn py-2 text-sm font-medium rounded-lg bg-white shadow-sm border border-slate-200 text-slate-900">Annual</button>
+                    <button onclick="changeView('monthly')" id="btn-monthly" class="view-btn py-2 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-200 transition-colors">Monthly</button>
+                    <button onclick="changeView('weekly')" id="btn-weekly" class="view-btn py-2 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-200 transition-colors">Weekly</button>
+                    <button onclick="changeView('hourly')" id="btn-hourly" class="view-btn py-2 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-200 transition-colors">Hourly</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-slate-50 border-bottom border-slate-200">
+                            <th class="px-6 py-4 font-semibold text-slate-700">Description</th>
+                            <th id="labelA" class="px-6 py-4 font-semibold text-blue-600">Scenario A</th>
+                            <th id="labelB" class="px-6 py-4 font-semibold text-emerald-600">Scenario B</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <tr>
+                            <td class="px-6 py-4 text-slate-600">Gross Pay</td>
+                            <td id="res-grossA" class="px-6 py-4 font-medium">£0.00</td>
+                            <td id="res-grossB" class="px-6 py-4 font-medium">£0.00</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 text-slate-600">Pension Deduction</td>
+                            <td id="res-pensionA" class="px-6 py-4 text-red-500">-£0.00</td>
+                            <td id="res-pensionB" class="px-6 py-4 text-red-500">-£0.00</td>
+                        </tr>
+                        <tr class="bg-slate-50/30">
+                            <td class="px-6 py-4 text-slate-500 italic">Taxable Income</td>
+                            <td id="res-taxableA" class="px-6 py-4 font-medium text-slate-600">£0.00</td>
+                            <td id="res-taxableB" class="px-6 py-4 font-medium text-slate-600">£0.00</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 text-slate-600">Income Tax</td>
+                            <td id="res-taxA" class="px-6 py-4 text-red-500">-£0.00</td>
+                            <td id="res-taxB" class="px-6 py-4 text-red-500">-£0.00</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 text-slate-600">National Insurance</td>
+                            <td id="res-niA" class="px-6 py-4 text-red-500">-£0.00</td>
+                            <td id="res-niB" class="px-6 py-4 text-red-500">-£0.00</td>
+                        </tr>
+                        <tr class="bg-slate-50/50">
+                            <td class="px-6 py-4 font-bold text-slate-900">Take-Home Pay</td>
+                            <td id="res-takeA" class="px-6 py-4 font-bold text-slate-900">£0.00</td>
+                            <td id="res-takeB" class="px-6 py-4 font-bold text-slate-900">£0.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="summary-bar" class="bg-emerald-600 p-6 text-white flex flex-col md:flex-row justify-between items-center">
+                <div class="text-center md:text-left mb-4 md:mb-0">
+                    <span class="text-emerald-100 text-sm uppercase tracking-wider font-bold">Net Increase</span>
+                    <h3 id="increase-total" class="text-3xl font-bold">£0.00</h3>
+                </div>
+                <div id="increase-pct" class="bg-emerald-500 py-2 px-4 rounded-full font-bold">
+                    +0.00%
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-8 text-center text-slate-400 text-sm">
+            <p>Calculations use standard English tax rates. Personal Allowance taper included for salaries >£100k.</p>
+            <p class="mt-1 text-xs text-slate-300 italic">Adjusted Net Income (Gross minus Pension) is used for tapering logic.</p>
+        </footer>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'salary_calc_v1';
+        let currentView = 'annual';
+        const views = {
+            annual: 1,
+            monthly: 12,
+            weekly: 52,
+            hourly: 37.5 * 52
+        };
+
+        const elements = {
+            salA: document.getElementById('salA'),
+            salB: document.getElementById('salB'),
+            yearA: document.getElementById('yearA'),
+            yearB: document.getElementById('yearB'),
+            pension: document.getElementById('pension'),
+            percentIncrease: document.getElementById('percentIncrease')
+        };
+
+        // --- Formatting Helpers ---
+
+        function cleanString(val) {
+            return val.toString().replace(/[^0-9.]/g, '');
+        }
+
+        function parseFormattedNumber(val) {
+            return parseFloat(cleanString(val)) || 0;
+        }
+
+        function formatWithCommas(val) {
+            if (val === "" || val === undefined || val === null) return "";
+            const clean = cleanString(val);
+            if (clean === "") return "";
+            
+            const parts = clean.split('.');
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            return parts.length > 1 ? parts[0] + "." + parts[1].slice(0, 4) : parts[0];
+        }
+
+        function applyLiveFormatting(e) {
+            const input = e.target;
+            const originalValue = input.value;
+            const originalCursor = input.selectionStart;
+            
+            const formatted = formatWithCommas(originalValue);
+            
+            if (formatted !== originalValue) {
+                input.value = formatted;
+                const diff = formatted.length - originalValue.length;
+                input.setSelectionRange(originalCursor + diff, originalCursor + diff);
+            }
+        }
+
+        // --- Tax Calculation Logic ---
+        function calculateTax(salary, year, pensionPct) {
+            const pension = salary * (pensionPct / 100);
+            const adjustedNetIncome = salary - pension;
+            
+            let pa = 12570;
+            if (adjustedNetIncome > 100000) {
+                const overThreshold = adjustedNetIncome - 100000;
+                pa = Math.max(0, 12570 - (overThreshold / 2));
+            }
+
+            let tax = 0;
+            const basicLimit = 37700;
+            const higherLimit = 125140;
+            const remainingTaxable = Math.max(0, adjustedNetIncome - pa);
+            
+            if (remainingTaxable > 0) {
+                const amountInBasic = Math.min(remainingTaxable, basicLimit);
+                tax += amountInBasic * 0.2;
+                if (remainingTaxable > basicLimit) {
+                    const higherBandMax = 125140 - (pa + basicLimit);
+                    const amountInHigher = Math.min(remainingTaxable - basicLimit, Math.max(0, higherBandMax));
+                    tax += amountInHigher * 0.4;
+                    if (adjustedNetIncome > 125140) {
+                        tax += (adjustedNetIncome - 125140) * 0.45;
+                    }
+                }
+            }
+
+            let ni = 0;
+            const pt = 12570;
+            const uel = 50270;
+            let mainRate = 0.08;
+            if (year === '2023') mainRate = 0.10;
+
+            if (salary > pt) {
+                ni += Math.min(salary - pt, uel - pt) * mainRate;
+                if (salary > uel) ni += (salary - uel) * 0.02;
+            }
+
+            return { 
+                gross: salary, 
+                pension, 
+                taxableIncome: adjustedNetIncome,
+                tax, 
+                ni, 
+                takeHome: salary - pension - tax - ni 
+            };
+        }
+
+        function formatDisplay(val) {
+            const divisor = views[currentView];
+            return '£' + (val / divisor).toLocaleString(undefined, { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+            });
+        }
+
+        function updatePercentageField() {
+            const sA = parseFormattedNumber(elements.salA.value);
+            const sB = parseFormattedNumber(elements.salB.value);
+            if (sA > 0) {
+                const pctVal = (((sB / sA) - 1) * 100).toFixed(1);
+                elements.percentIncrease.value = formatWithCommas(pctVal);
+            }
+        }
+
+        function calculate() {
+            const salA = parseFormattedNumber(elements.salA.value);
+            const salB = parseFormattedNumber(elements.salB.value);
+            const yearA = elements.yearA.value;
+            const yearB = elements.yearB.value;
+            const p = parseFormattedNumber(elements.pension.value);
+
+            const resA = calculateTax(salA, yearA, p);
+            const resB = calculateTax(salB, yearB, p);
+
+            document.getElementById('labelA').textContent = `Scenario A (${yearA}/${parseInt(yearA)+1-2000})`;
+            document.getElementById('labelB').textContent = `Scenario B (${yearB}/${parseInt(yearB)+1-2000})`;
+
+            const updateRes = (prefix, res) => {
+                document.getElementById(`res-gross${prefix}`).textContent = formatDisplay(res.gross);
+                document.getElementById(`res-pension${prefix}`).textContent = '-' + formatDisplay(res.pension);
+                document.getElementById(`res-taxable${prefix}`).textContent = formatDisplay(res.taxableIncome);
+                document.getElementById(`res-tax${prefix}`).textContent = '-' + formatDisplay(res.tax);
+                document.getElementById(`res-ni${prefix}`).textContent = '-' + formatDisplay(res.ni);
+                document.getElementById(`res-take${prefix}`).textContent = formatDisplay(res.takeHome);
+            };
+
+            updateRes('A', resA);
+            updateRes('B', resB);
+
+            const diff = resB.takeHome - resA.takeHome;
+            const summaryBar = document.getElementById('summary-bar');
+            const pctLabel = document.getElementById('increase-pct');
+            
+            document.getElementById('increase-total').textContent = (diff >= 0 ? '+ ' : '- ') + formatDisplay(Math.abs(diff));
+            const pct = resA.takeHome > 0 ? (diff / resA.takeHome) * 100 : 0;
+            pctLabel.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+
+            summaryBar.className = diff < 0 
+                ? 'bg-rose-600 p-6 text-white flex flex-col md:flex-row justify-between items-center transition-colors' 
+                : 'bg-emerald-600 p-6 text-white flex flex-col md:flex-row justify-between items-center transition-colors';
+            pctLabel.className = diff < 0 
+                ? 'bg-rose-500 py-2 px-4 rounded-full font-bold' 
+                : 'bg-emerald-500 py-2 px-4 rounded-full font-bold';
+            
+            saveToLocalStorage();
+        }
+
+        // --- Persistence ---
+        function saveToLocalStorage() {
+            const data = {
+                salA: elements.salA.value,
+                salB: elements.salB.value,
+                yearA: elements.yearA.value,
+                yearB: elements.yearB.value,
+                pension: elements.pension.value,
+                percentIncrease: elements.percentIncrease.value,
+                currentView: currentView
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        function loadFromLocalStorage() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            try {
+                const data = JSON.parse(raw);
+                Object.keys(data).forEach(key => {
+                    if (key === 'currentView') {
+                        changeView(data[key]);
+                    } else if (elements[key]) {
+                        elements[key].value = data[key];
+                    }
+                });
+            } catch (e) { console.error("Load failed", e); }
+        }
+
+        // --- Event Listeners ---
+
+        elements.salA.addEventListener('input', (e) => {
+            applyLiveFormatting(e);
+            updatePercentageField();
+            calculate();
+        });
+
+        elements.salB.addEventListener('input', (e) => {
+            applyLiveFormatting(e);
+            updatePercentageField();
+            calculate();
+        });
+
+        elements.percentIncrease.addEventListener('input', (e) => {
+            applyLiveFormatting(e);
+            const val = parseFormattedNumber(elements.salA.value);
+            const pct = parseFormattedNumber(elements.percentIncrease.value);
+            const newVal = Math.round(val * (1 + pct / 100));
+            elements.salB.value = formatWithCommas(newVal.toString());
+            calculate();
+        });
+
+        elements.pension.addEventListener('input', (e) => {
+            applyLiveFormatting(e);
+            calculate();
+        });
+
+        ['yearA', 'yearB'].forEach(id => {
+            elements[id].addEventListener('change', calculate);
+        });
+
+        window.changeView = (v) => {
+            currentView = v;
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'shadow-sm', 'border', 'border-slate-200', 'text-slate-900');
+                btn.classList.add('text-slate-600', 'hover:bg-slate-200');
+            });
+            const activeBtn = document.getElementById('btn-' + v);
+            if (activeBtn) {
+                activeBtn.classList.add('bg-white', 'shadow-sm', 'border', 'border-slate-200', 'text-slate-900');
+                activeBtn.classList.remove('text-slate-600', 'hover:bg-slate-200');
+            }
+            calculate();
+        };
+
+        // Initialize
+        loadFromLocalStorage();
+        calculate();
+    </script>
+</body>
+</html>
