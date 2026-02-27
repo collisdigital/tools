@@ -951,7 +951,7 @@ TOOL_OVERVIEW_END
                     <div class="session-card bg-white rounded-lg border border-gray-200 overflow-hidden">
                         <div class="p-5">
                             <div class="flex flex-wrap items-start justify-between gap-2 mb-1">
-                                <h3 class="text-lg font-semibold text-gray-900 truncate flex-1 min-w-[200px]" title="${title}">${title}</h3>
+                                <h3 class="text-lg font-semibold text-gray-900 truncate flex-1 min-w-[200px]" title="${escapeHtml(title)}">${escapeHtml(title)}</h3>
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase flex-none ${statusColor}">
                                     ${session.state || 'ACTIVE'}
                                 </span>
@@ -962,30 +962,30 @@ TOOL_OVERVIEW_END
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                                 </svg>
-                                <a href="${repoUrl}" target="_blank" class="truncate hover:text-blue-600 transition-colors hover:underline" title="View Repository">${repoSource}</a>
+                                <a href="${escapeHtml(repoUrl)}" target="_blank" class="truncate hover:text-blue-600 transition-colors hover:underline" title="View Repository">${escapeHtml(repoSource)}</a>
                             </div>
 
-                            <p class="text-gray-600 text-sm mb-4 line-clamp-2 cursor-pointer" onclick="this.classList.toggle('line-clamp-2')" title="Click to expand/collapse">${prompt}</p>
+                            <p class="text-gray-600 text-sm mb-4 line-clamp-2 cursor-pointer" onclick="this.classList.toggle('line-clamp-2')" title="Click to expand/collapse">${escapeHtml(prompt)}</p>
                             
                             ${pr ? `
                             <div class="mb-4">
-                                <a href="${pr.url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-md text-[11px] font-semibold hover:bg-green-100 transition-colors border border-green-100 w-full md:w-auto">
+                                <a href="${escapeHtml(pr.url)}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-md text-[11px] font-semibold hover:bg-green-100 transition-colors border border-green-100 w-full md:w-auto">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 640 640"><!--!Font Awesome Free v7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M392 88C392 78.3 386.2 69.5 377.2 65.8C368.2 62.1 357.9 64.2 351 71L295 127C285.6 136.4 285.6 151.6 295 160.9L351 216.9C357.9 223.8 368.2 225.8 377.2 222.1C386.2 218.4 392 209.7 392 200L392 176L416 176C433.7 176 448 190.3 448 208L448 422.7C419.7 435 400 463.2 400 496C400 540.2 435.8 576 480 576C524.2 576 560 540.2 560 496C560 463.2 540.3 435 512 422.7L512 208C512 155 469 112 416 112L392 112L392 88zM136 144C136 130.7 146.7 120 160 120C173.3 120 184 130.7 184 144C184 157.3 173.3 168 160 168C146.7 168 136 157.3 136 144zM192 217.3C220.3 205 240 176.8 240 144C240 99.8 204.2 64 160 64C115.8 64 80 99.8 80 144C80 176.8 99.7 205 128 217.3L128 422.6C99.7 434.9 80 463.1 80 495.9C80 540.1 115.8 575.9 160 575.9C204.2 575.9 240 540.1 240 495.9C240 463.1 220.3 434.9 192 422.6L192 217.3zM136 496C136 482.7 146.7 472 160 472C173.3 472 184 482.7 184 496C184 509.3 173.3 520 160 520C146.7 520 136 509.3 136 496zM480 472C493.3 472 504 482.7 504 496C504 509.3 493.3 520 480 520C466.7 520 456 509.3 456 496C456 482.7 466.7 472 480 472z"/></svg>
-                                    PR: ${pr.title}
+                                    PR: ${escapeHtml(pr.title)}
                                 </a>
                             </div>
                             ` : ''}
 
                             <div class="flex items-center justify-between mt-4 border-t border-gray-100 pt-3">
                                 <div class="flex items-center gap-3 min-w-0">
-                                    <a href="${session.url}" target="_blank" class="text-xs text-gray-400 font-mono hover:text-blue-600 transition-colors flex items-center gap-1 flex-none" title="Open in Jules">
-                                        ${sessionId}
+                                    <a href="${escapeHtml(session.url)}" target="_blank" class="text-xs text-gray-400 font-mono hover:text-blue-600 transition-colors flex items-center gap-1 flex-none" title="Open in Jules">
+                                        ${escapeHtml(sessionId)}
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                         </svg>
                                     </a>
-                                    <div class="text-[10px] text-gray-400 truncate border-l border-gray-200 pl-3 hidden md:block" title="Created: ${createdDate} | Updated: ${updatedDate}">
-                                        <span class="font-medium text-gray-400">C:</span> ${createdDate} <span class="mx-1 text-gray-300">•</span> <span class="font-medium text-gray-400">U:</span> ${updatedDate}
+                                    <div class="text-[10px] text-gray-400 truncate border-l border-gray-200 pl-3 hidden md:block" title="Created: ${escapeHtml(createdDate)} | Updated: ${escapeHtml(updatedDate)}">
+                                        <span class="font-medium text-gray-400">C:</span> ${escapeHtml(createdDate)} <span class="mx-1 text-gray-300">•</span> <span class="font-medium text-gray-400">U:</span> ${escapeHtml(updatedDate)}
                                     </div>
                                 </div>
                                 <button onclick="toggleActivities('${session.name}', '${containerId}', this)" 
