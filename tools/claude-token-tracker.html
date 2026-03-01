@@ -5,6 +5,7 @@ TOOL_OVERVIEW_START
   "description": "An interactive dashboard designed to track and visualize Claude's 5-hour rolling token refresh window, helping users manage their usage limits effectively.",
   "functionality": {
     "session_anchoring": "Starts a high-visibility 5-hour countdown timer based on user activity.",
+    "visual_progress_ring": "A circular 'pie chart' style display that fills up as the refresh time approaches.",
     "retroactive_editing": "Allows manual adjustment of session start times to maintain accuracy if the user forgets to click start immediately.",
     "local_persistence": "Uses browser localStorage to save session history and active timers across browser refreshes.",
     "usage_analytics": "Displays a daily log of session windows and a bar chart representing recent activity patterns."
@@ -32,8 +33,15 @@ TOOL_OVERVIEW_END
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
 
         #countdown {
-            font-size: clamp(3rem, 15vw, 6rem);
+            font-size: clamp(2rem, 10vw, 4.5rem);
             line-height: 1;
+        }
+
+        /* Circular Progress Styling */
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.5s linear;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
         }
     </style>
 </head>
@@ -52,24 +60,56 @@ TOOL_OVERVIEW_END
         </header>
 
         <!-- Main Timer Card -->
-        <div class="glass rounded-3xl p-6 md:p-12 text-center relative overflow-hidden">
-            <div class="relative z-10">
-                <h2 class="text-sm md:text-lg font-semibold text-slate-400 mb-2 uppercase tracking-widest">Next Refresh In</h2>
+        <div class="glass rounded-3xl p-6 md:p-10 text-center relative overflow-hidden">
+            <div class="relative z-10 flex flex-col items-center">
+                <h2 class="text-xs md:text-sm font-semibold text-slate-400 mb-6 uppercase tracking-widest">Next Refresh Progress</h2>
                 
-                <div id="countdown" class="font-black mb-8 font-mono text-white tracking-tighter">
-                    00:00:00
+                <!-- Circular Progress Container -->
+                <div class="relative inline-flex items-center justify-center mb-8">
+                    <svg class="w-48 h-48 md:w-64 md:h-64">
+                        <!-- Background Circle (Track) -->
+                        <circle
+                            class="text-slate-800"
+                            stroke-width="8"
+                            stroke="currentColor"
+                            fill="transparent"
+                            r="90"
+                            cx="50%"
+                            cy="50%"
+                        />
+                        <!-- Progress Circle -->
+                        <circle
+                            id="progressRing"
+                            class="text-purple-500 progress-ring__circle"
+                            stroke-width="10"
+                            stroke-linecap="round"
+                            stroke="currentColor"
+                            fill="transparent"
+                            r="90"
+                            cx="50%"
+                            cy="50%"
+                            stroke-dasharray="565.48"
+                            stroke-dashoffset="565.48"
+                        />
+                    </svg>
+                    <!-- Countdown inside the ring -->
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <div id="countdown" class="font-black font-mono text-white tracking-tighter">
+                            00:00:00
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
-                    <button id="startBtn" class="bg-purple-600 hover:bg-purple-500 text-white px-8 py-4 rounded-2xl font-bold transition-all transform active:scale-95 shadow-lg shadow-purple-500/20 text-sm md:text-base">
+                <div class="flex flex-col sm:flex-row justify-center gap-4 mb-6 w-full max-w-md">
+                    <button id="startBtn" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white px-6 py-4 rounded-2xl font-bold transition-all transform active:scale-95 shadow-lg shadow-purple-500/20 text-sm md:text-base">
                         Start New Session
                     </button>
-                    <button id="editBtn" class="bg-slate-700 hover:bg-slate-600 text-white px-8 py-4 rounded-2xl font-bold transition-all text-sm md:text-base">
+                    <button id="editBtn" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-6 py-4 rounded-2xl font-bold transition-all text-sm md:text-base">
                         Edit Start Time
                     </button>
                 </div>
 
-                <div id="sessionStatus" class="text-slate-400 italic text-sm">
+                <div id="sessionStatus" class="text-slate-400 italic text-xs md:text-sm">
                     No active session. Click start to anchor your window.
                 </div>
             </div>
@@ -87,7 +127,6 @@ TOOL_OVERVIEW_END
                     <button id="clearBtn" class="text-xs text-red-400 hover:text-red-300 transition-colors">Clear All</button>
                 </div>
                 <div id="historyLog" class="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
-                    <!-- Logs go here -->
                 </div>
             </div>
 
@@ -124,8 +163,10 @@ TOOL_OVERVIEW_END
         let activeSession = null;
         let chart = null;
         const REFRESH_WINDOW_HOURS = 5;
+        const CIRCUMFERENCE = 2 * Math.PI * 90;
 
         const countdownEl = document.getElementById('countdown');
+        const progressRing = document.getElementById('progressRing');
         const startBtn = document.getElementById('startBtn');
         const editBtn = document.getElementById('editBtn');
         const historyLogEl = document.getElementById('historyLog');
@@ -163,23 +204,36 @@ TOOL_OVERVIEW_END
                     countdownEl.textContent = "00:00:00";
                     countdownEl.classList.add('text-slate-600');
                     countdownEl.classList.remove('text-white');
+                    setProgress(0);
                 }
             }
+        }
+
+        function setProgress(percent) {
+            const offset = CIRCUMFERENCE - (percent / 100 * CIRCUMFERENCE);
+            progressRing.style.strokeDashoffset = offset;
         }
 
         function tick() {
             if (!activeSession) return;
 
             const startTime = new Date(activeSession.start);
-            const endTime = new Date(startTime.getTime() + (REFRESH_WINDOW_HOURS * 60 * 60 * 1000));
+            const totalDuration = REFRESH_WINDOW_HOURS * 60 * 60 * 1000;
+            const endTime = new Date(startTime.getTime() + totalDuration);
             const now = new Date();
             const diff = endTime - now;
 
             if (diff <= 0) {
                 activeSession = null;
                 checkActiveSession();
+                setProgress(0);
                 return;
             }
+
+            // Calculate progress (filling up as refresh approaches)
+            const elapsed = now - startTime;
+            const percent = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
+            setProgress(percent);
 
             const h = Math.floor(diff / (1000 * 60 * 60));
             const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
