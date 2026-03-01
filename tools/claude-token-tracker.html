@@ -1,0 +1,366 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "Claude Session & Refresh Tracker",
+  "description": "An interactive dashboard designed to track and visualize Claude's 5-hour rolling token refresh window, helping users manage their usage limits effectively.",
+  "functionality": {
+    "session_anchoring": "Starts a high-visibility 5-hour countdown timer based on user activity.",
+    "retroactive_editing": "Allows manual adjustment of session start times to maintain accuracy if the user forgets to click start immediately.",
+    "local_persistence": "Uses browser localStorage to save session history and active timers across browser refreshes.",
+    "usage_analytics": "Displays a daily log of session windows and a bar chart representing recent activity patterns."
+  },
+  "dependencies": ["Tailwind CSS", "Chart.js", "Google Fonts (Inter)"],
+  "last_updated": "2026-03-01"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Session & Refresh Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+
+        #countdown {
+            font-size: clamp(3rem, 15vw, 6rem);
+            line-height: 1;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
+                    Claude Token Tracker
+                </h1>
+                <p class="text-slate-400 text-sm">Managing the 5-hour rolling window</p>
+            </div>
+            <div id="currentTime" class="hidden sm:block text-xl font-mono text-slate-300">00:00:00</div>
+        </header>
+
+        <!-- Main Timer Card -->
+        <div class="glass rounded-3xl p-6 md:p-12 text-center relative overflow-hidden">
+            <div class="relative z-10">
+                <h2 class="text-sm md:text-lg font-semibold text-slate-400 mb-2 uppercase tracking-widest">Next Refresh In</h2>
+                
+                <div id="countdown" class="font-black mb-8 font-mono text-white tracking-tighter">
+                    00:00:00
+                </div>
+                
+                <div class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
+                    <button id="startBtn" class="bg-purple-600 hover:bg-purple-500 text-white px-8 py-4 rounded-2xl font-bold transition-all transform active:scale-95 shadow-lg shadow-purple-500/20 text-sm md:text-base">
+                        Start New Session
+                    </button>
+                    <button id="editBtn" class="bg-slate-700 hover:bg-slate-600 text-white px-8 py-4 rounded-2xl font-bold transition-all text-sm md:text-base">
+                        Edit Start Time
+                    </button>
+                </div>
+
+                <div id="sessionStatus" class="text-slate-400 italic text-sm">
+                    No active session. Click start to anchor your window.
+                </div>
+            </div>
+            
+            <div class="absolute -top-24 -right-24 w-64 h-64 bg-purple-600/10 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl"></div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- History Log -->
+            <div class="glass rounded-2xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg md:text-xl font-bold">Today's History</h3>
+                    <button id="clearBtn" class="text-xs text-red-400 hover:text-red-300 transition-colors">Clear All</button>
+                </div>
+                <div id="historyLog" class="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
+                    <!-- Logs go here -->
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="glass rounded-2xl p-6">
+                <h3 class="text-lg md:text-xl font-bold mb-4">Activity Timeline</h3>
+                <div class="relative h-[200px]">
+                    <canvas id="usageChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Modal -->
+        <div id="editModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+            <div class="glass p-6 md:p-8 rounded-3xl w-full max-w-md">
+                <h3 class="text-xl md:text-2xl font-bold mb-2">Edit Session Start</h3>
+                <p class="text-slate-400 mb-6 text-sm">Adjust the anchor time if you started using Claude earlier than you clicked the button.</p>
+                
+                <div class="space-y-4">
+                    <label class="block text-xs uppercase tracking-widest text-slate-500 font-bold">Start Time</label>
+                    <input type="datetime-local" id="editTimeInput" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-purple-500 transition-colors">
+                </div>
+
+                <div class="flex gap-4 mt-8">
+                    <button id="saveEditBtn" class="flex-1 bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-bold transition-colors">Save Changes</button>
+                    <button id="closeModalBtn" class="flex-1 bg-slate-700 hover:bg-slate-600 p-3 rounded-xl font-bold transition-colors">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessions = JSON.parse(localStorage.getItem('claude_sessions')) || [];
+        let activeSession = null;
+        let chart = null;
+        const REFRESH_WINDOW_HOURS = 5;
+
+        const countdownEl = document.getElementById('countdown');
+        const startBtn = document.getElementById('startBtn');
+        const editBtn = document.getElementById('editBtn');
+        const historyLogEl = document.getElementById('historyLog');
+        const sessionStatusEl = document.getElementById('sessionStatus');
+        const currentTimeEl = document.getElementById('currentTime');
+        const editModal = document.getElementById('editModal');
+        const editTimeInput = document.getElementById('editTimeInput');
+
+        function init() {
+            updateClock();
+            setInterval(updateClock, 1000);
+            renderHistory();
+            initChart();
+            checkActiveSession();
+            setInterval(tick, 1000);
+        }
+
+        function updateClock() {
+            const now = new Date();
+            currentTimeEl.textContent = now.toLocaleTimeString();
+        }
+
+        function checkActiveSession() {
+            if (sessions.length > 0) {
+                const latest = sessions[0];
+                const startTime = new Date(latest.start);
+                const endTime = new Date(startTime.getTime() + (REFRESH_WINDOW_HOURS * 60 * 60 * 1000));
+                
+                if (new Date() < endTime) {
+                    activeSession = latest;
+                    sessionStatusEl.innerHTML = `Session anchored at <span class="text-purple-400 font-bold">${startTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
+                } else {
+                    activeSession = null;
+                    sessionStatusEl.textContent = "Last session expired. Ready for new anchor.";
+                    countdownEl.textContent = "00:00:00";
+                    countdownEl.classList.add('text-slate-600');
+                    countdownEl.classList.remove('text-white');
+                }
+            }
+        }
+
+        function tick() {
+            if (!activeSession) return;
+
+            const startTime = new Date(activeSession.start);
+            const endTime = new Date(startTime.getTime() + (REFRESH_WINDOW_HOURS * 60 * 60 * 1000));
+            const now = new Date();
+            const diff = endTime - now;
+
+            if (diff <= 0) {
+                activeSession = null;
+                checkActiveSession();
+                return;
+            }
+
+            const h = Math.floor(diff / (1000 * 60 * 60));
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+            countdownEl.textContent = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            countdownEl.classList.remove('text-slate-600');
+            countdownEl.classList.add('text-white');
+        }
+
+        function startSession(time = new Date()) {
+            const newSession = {
+                id: Date.now(),
+                start: time.toISOString(),
+                label: `Session ${sessions.length + 1}`
+            };
+            sessions.unshift(newSession); 
+            save();
+            checkActiveSession();
+            renderHistory();
+            updateChart();
+        }
+
+        function renderHistory() {
+            historyLogEl.innerHTML = '';
+            const today = new Date().toDateString();
+            const todaySessions = sessions.filter(s => new Date(s.start).toDateString() === today);
+            
+            todaySessions.forEach(session => {
+                const start = new Date(session.start);
+                const end = new Date(start.getTime() + (REFRESH_WINDOW_HOURS * 60 * 60 * 1000));
+                
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors";
+                div.innerHTML = `
+                    <div class="flex-shrink-0">
+                        <div class="font-bold text-sm text-purple-300">${start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                        <div class="text-[10px] text-slate-500 uppercase tracking-tighter">Start</div>
+                    </div>
+                    <div class="h-px flex-1 mx-3 bg-slate-700/50"></div>
+                    <div class="text-right flex-shrink-0">
+                        <div class="font-bold text-sm text-green-400">${end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                        <div class="text-[10px] text-slate-500 uppercase tracking-tighter">Refresh</div>
+                    </div>
+                `;
+                historyLogEl.appendChild(div);
+            });
+            
+            if (todaySessions.length === 0) {
+                historyLogEl.innerHTML = '<div class="text-center py-8 text-slate-500 italic text-sm">No activity recorded for today</div>';
+            }
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('usageChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Tokens Refreshed',
+                        data: [],
+                        backgroundColor: 'rgba(147, 51, 234, 0.5)',
+                        borderColor: 'rgba(147, 51, 234, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 6, grid: { color: '#1e293b' }, ticks: { display: false } },
+                        x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } }
+                    },
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    }
+                }
+            });
+            updateChart();
+        }
+
+        function updateChart() {
+            if (!chart) return;
+            const recent = sessions.slice(0, 7).reverse();
+            chart.data.labels = recent.map(s => new Date(s.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+            chart.data.datasets[0].data = recent.map(() => 5); 
+            chart.update();
+        }
+
+        function save() {
+            localStorage.setItem('claude_sessions', JSON.stringify(sessions));
+        }
+
+        startBtn.addEventListener('click', () => {
+            if (activeSession) {
+                const overlay = document.createElement('div');
+                overlay.className = "fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm";
+                overlay.innerHTML = `
+                    <div class="glass p-6 rounded-2xl max-w-sm text-center">
+                        <p class="mb-6 font-semibold">Overriding existing session. Are you sure?</p>
+                        <div class="flex gap-3">
+                            <button id="confirmStart" class="flex-1 bg-purple-600 p-2 rounded-lg font-bold text-sm">Yes, Restart</button>
+                            <button id="cancelStart" class="flex-1 bg-slate-700 p-2 rounded-lg font-bold text-sm">Cancel</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+                
+                document.getElementById('confirmStart').onclick = () => {
+                    startSession();
+                    document.body.removeChild(overlay);
+                };
+                document.getElementById('cancelStart').onclick = () => {
+                    document.body.removeChild(overlay);
+                };
+            } else {
+                startSession();
+            }
+        });
+
+        editBtn.addEventListener('click', () => {
+            const now = new Date();
+            let dateToEdit = now;
+            if (sessions.length > 0) dateToEdit = new Date(sessions[0].start);
+            const tzOffset = dateToEdit.getTimezoneOffset() * 60000;
+            const localISODate = new Date(dateToEdit.getTime() - tzOffset).toISOString().slice(0, 16);
+            editTimeInput.value = localISODate;
+            editModal.classList.remove('hidden');
+        });
+
+        document.getElementById('saveEditBtn').addEventListener('click', () => {
+            const newDate = new Date(editTimeInput.value);
+            if (isNaN(newDate.getTime())) return;
+            if (sessions.length > 0) {
+                sessions[0].start = newDate.toISOString();
+            } else {
+                startSession(newDate);
+            }
+            save();
+            checkActiveSession();
+            renderHistory();
+            updateChart();
+            editModal.classList.add('hidden');
+        });
+
+        document.getElementById('closeModalBtn').addEventListener('click', () => {
+            editModal.classList.add('hidden');
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            const overlay = document.createElement('div');
+            overlay.className = "fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm";
+            overlay.innerHTML = `
+                <div class="glass p-6 rounded-2xl max-w-sm text-center border-red-500/30">
+                    <p class="mb-6 font-semibold">Delete all session data? This cannot be undone.</p>
+                    <div class="flex gap-3">
+                        <button id="confirmClear" class="flex-1 bg-red-600 p-2 rounded-lg font-bold text-sm">Delete</button>
+                        <button id="cancelClear" class="flex-1 bg-slate-700 p-2 rounded-lg font-bold text-sm">Cancel</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            
+            document.getElementById('confirmClear').onclick = () => {
+                sessions = [];
+                activeSession = null;
+                save();
+                renderHistory();
+                updateChart();
+                checkActiveSession();
+                document.body.removeChild(overlay);
+            };
+            document.getElementById('cancelClear').onclick = () => {
+                document.body.removeChild(overlay);
+            };
+        });
+
+        window.onload = init;
+    </script>
+</body>
+</html>
