@@ -1,0 +1,360 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "PlantUML Live Editor",
+  "description": "A standalone real-time editor for PlantUML diagrams that leverages a private Cloud Run instance for secure and unlimited rendering.",
+  "functionality": {
+    "realtime_rendering": "Instant conversion of PlantUML syntax into visual diagrams with debounced updates.",
+    "export_capabilities": "Direct options to download the raw .puml source code or export the rendered diagram as a PNG file.",
+    "productivity_tools": "Integrated cut, copy, and paste controls alongside tab-key indentation support for faster diagramming."
+  },
+  "dependencies": ["Tailwind CSS", "Font Awesome", "pako.js", "PlantUML Server (Cloud Run)"],
+  "last_updated": "2024-05-22"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlantUML Live Realtime Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8fafc;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .editor-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        #editor {
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', Courier, monospace;
+            resize: none;
+            outline: none;
+            background: #1e293b;
+            color: #e2e8f0;
+            line-height: 1.5;
+            tab-size: 4;
+        }
+        .preview-pane {
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            position: relative;
+        }
+        #diagram-img {
+            max-width: 100%;
+            transition: opacity 0.2s;
+        }
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header / Toolbar -->
+    <header class="bg-white border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-4 z-10">
+        <div class="flex items-center gap-2">
+            <div class="bg-indigo-600 p-2 rounded-lg text-white">
+                <i class="fas fa-project-diagram"></i>
+            </div>
+            <h1 class="text-xl font-bold text-slate-800 hidden sm:block">PlantUML Live</h1>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+            <!-- Clipboard Group -->
+            <div class="flex bg-slate-100 p-1 rounded-md">
+                <button onclick="handleAction('cut')" title="Cut" class="p-2 hover:bg-white hover:shadow-sm rounded transition text-slate-600">
+                    <i class="fas fa-cut"></i>
+                </button>
+                <button onclick="handleAction('copy')" title="Copy" class="p-2 hover:bg-white hover:shadow-sm rounded transition text-slate-600">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button onclick="handleAction('paste')" title="Paste" class="p-2 hover:bg-white hover:shadow-sm rounded transition text-slate-600">
+                    <i class="fas fa-paste"></i>
+                </button>
+            </div>
+
+            <div class="h-6 w-px bg-slate-300 mx-1"></div>
+
+            <!-- Export Group -->
+            <button onclick="downloadSource()" class="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-md text-sm font-medium transition">
+                <i class="fas fa-file-code"></i>
+                <span>Save .puml</span>
+            </button>
+            <button onclick="downloadImage()" class="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium transition">
+                <i class="fas fa-image"></i>
+                <span>Export PNG</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="editor-container flex-col md:flex-row">
+        <!-- Editor Side -->
+        <div class="w-full md:w-1/2 flex flex-col relative border-r border-slate-200">
+            <div class="bg-slate-800 px-3 py-1 text-xs text-slate-400 font-mono flex justify-between uppercase tracking-wider">
+                <span>Editor</span>
+                <span id="char-count">0 chars</span>
+            </div>
+            <textarea id="editor" class="flex-1 p-4 custom-scrollbar" spellcheck="false" placeholder="Type PlantUML code here...">@startuml
+participant User
+participant Browser
+participant PrivateServer
+
+User -> Browser: Open Page
+Browser -> PrivateServer: GET /png/[encoded]
+PrivateServer --> Browser: Rendered Image
+Browser --> User: Display Diagram
+@enduml</textarea>
+        </div>
+
+        <!-- Preview Side -->
+        <div class="w-full md:w-1/2 flex flex-col bg-white overflow-hidden">
+            <div class="bg-slate-100 px-3 py-1 text-xs text-slate-500 font-sans flex justify-between uppercase tracking-wider">
+                <span>Preview (Private Instance)</span>
+                <span id="status">Ready</span>
+            </div>
+            <div class="preview-pane flex-1 custom-scrollbar p-6">
+                <div id="loading" class="loading-overlay">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+                <img id="diagram-img" alt="PlantUML Diagram" src="" class="shadow-lg">
+                <div id="error-message" class="hidden absolute top-4 left-4 right-4 bg-red-50 text-red-600 p-3 rounded border border-red-200 text-sm">
+                    <i class="fas fa-exclamation-circle mr-2"></i>
+                    <span>Failed to render diagram. Ensure your Cloud Run instance is reachable and code is valid.</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Utility Toast -->
+    <div id="toast" class="fixed bottom-6 right-6 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-xl pointer-events-none text-sm">
+        Text copied to clipboard
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const diagramImg = document.getElementById('diagram-img');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('error-message');
+        const charCount = document.getElementById('char-count');
+        const statusText = document.getElementById('status');
+        const toast = document.getElementById('toast');
+
+        // PRIVATE INSTANCE URL
+        const CLOUD_RUN_URL = "https://plantuml-server-486919769824.europe-west1.run.app";
+
+        let debounceTimer;
+
+        // --- PlantUML Compression Logic ---
+        function encode64(data) {
+            let r = "";
+            for (let i = 0; i < data.length; i += 3) {
+                if (i + 2 == data.length) {
+                    r += append3bytes(data.charCodeAt(i), data.charCodeAt(i + 1), 0);
+                } else if (i + 1 == data.length) {
+                    r += append3bytes(data.charCodeAt(i), 0, 0);
+                } else {
+                    r += append3bytes(data.charCodeAt(i), data.charCodeAt(i + 1), data.charCodeAt(i + 2));
+                }
+            }
+            return r;
+        }
+
+        function append3bytes(b1, b2, b3) {
+            let c1 = b1 >> 2;
+            let c2 = ((b1 & 0x3) << 4) | (b2 >> 4);
+            let c3 = ((b2 & 0xF) << 2) | (b3 >> 6);
+            let c4 = b3 & 0x3F;
+            let r = "";
+            r += encode6bit(c1 & 0x3F);
+            r += encode6bit(c2 & 0x3F);
+            r += encode6bit(c3 & 0x3F);
+            r += encode6bit(c4 & 0x3F);
+            return r;
+        }
+
+        function encode6bit(b) {
+            if (b < 10) return String.fromCharCode(48 + b);
+            b -= 10;
+            if (b < 26) return String.fromCharCode(65 + b);
+            b -= 26;
+            if (b < 26) return String.fromCharCode(97 + b);
+            b -= 26;
+            if (b == 0) return '-';
+            if (b == 1) return '_';
+            return '?';
+        }
+
+        function encodeUTF8(s) {
+            return unescape(encodeURIComponent(s));
+        }
+
+        async function updateDiagram() {
+            const code = editor.value.trim();
+            charCount.textContent = `${code.length} chars`;
+            
+            if (!code) {
+                diagramImg.style.opacity = '0';
+                return;
+            }
+
+            statusText.textContent = "Updating...";
+            loading.style.display = 'flex';
+            errorMessage.classList.add('hidden');
+            
+            try {
+                if (typeof pako === 'undefined') {
+                    const script = document.createElement('script');
+                    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js";
+                    script.onload = () => processUpdate(code);
+                    document.head.appendChild(script);
+                } else {
+                    processUpdate(code);
+                }
+            } catch (err) {
+                console.error(err);
+                showError();
+            }
+        }
+
+        function processUpdate(code) {
+            try {
+                const data = encodeUTF8(code);
+                const compressed = pako.deflateRaw(data, { level: 9 });
+                const encoded = encode64(String.fromCharCode.apply(null, compressed));
+                
+                // Pointing to your deployed Cloud Run instance
+                const url = `${CLOUD_RUN_URL}/png/${encoded}`;
+                
+                diagramImg.src = url;
+                diagramImg.onload = () => {
+                    loading.style.display = 'none';
+                    diagramImg.style.opacity = '1';
+                    statusText.textContent = "Synced (Private)";
+                };
+                diagramImg.onerror = () => showError();
+            } catch (e) {
+                showError();
+            }
+        }
+
+        function showError() {
+            loading.style.display = 'none';
+            errorMessage.classList.remove('hidden');
+            statusText.textContent = "Error";
+        }
+
+        // --- Controls ---
+        
+        function handleAction(action) {
+            editor.focus();
+            if (action === 'cut') {
+                document.execCommand('cut');
+                showToast("Cut to clipboard");
+            } else if (action === 'copy') {
+                document.execCommand('copy');
+                showToast("Copied to clipboard");
+            } else if (action === 'paste') {
+                navigator.clipboard.readText().then(text => {
+                    const start = editor.selectionStart;
+                    const end = editor.selectionEnd;
+                    editor.value = editor.value.substring(0, start) + text + editor.value.substring(end);
+                    editor.setSelectionRange(start + text.length, start + text.length);
+                    updateDiagram();
+                }).catch(err => {
+                    showToast("Paste manually (Ctrl+V)");
+                });
+            }
+        }
+
+        function downloadSource() {
+            const blob = new Blob([editor.value], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'diagram.puml';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("Source saved");
+        }
+
+        async function downloadImage() {
+            if (!diagramImg.src || diagramImg.src === window.location.href) return;
+            
+            statusText.textContent = "Downloading...";
+            try {
+                const response = await fetch(diagramImg.src);
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'plantuml-export.png';
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast("Image exported");
+                statusText.textContent = "Synced";
+            } catch (err) {
+                showToast("Download failed");
+            }
+        }
+
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2000);
+        }
+
+        editor.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updateDiagram, 500);
+        });
+
+        editor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = editor.selectionStart;
+                const end = editor.selectionEnd;
+                editor.value = editor.value.substring(0, start) + "    " + editor.value.substring(end);
+                editor.selectionStart = editor.selectionEnd = start + 4;
+            }
+        });
+
+        window.onload = () => {
+            updateDiagram();
+        };
+    </script>
+</body>
+</html>
