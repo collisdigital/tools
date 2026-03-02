@@ -2,12 +2,12 @@
 TOOL_OVERVIEW_START
 {
   "name": "PlantUML Live Editor (AI Enhanced)",
-  "description": "A standalone real-time editor for PlantUML diagrams with integrated Gemini AI generation and secure AES-GCM encrypted API key handling.",
+  "description": "A standalone real-time editor for PlantUML diagrams with integrated Gemini AI generation and secure AES-GCM encrypted API key handling. Persistent settings are stored locally in the browser.",
   "functionality": {
-    "ai_generation": "Generate complex diagrams from natural language prompts using an encrypted Gemini API key unlocked by a session password.",
-    "secure_key_storage": "AES-GCM encryption for the API key ensures the key is never stored in plaintext within the source code.",
-    "realtime_rendering": "Instant conversion of PlantUML syntax into visual diagrams with debounced updates and private server rendering.",
-    "export_capabilities": "Tools to download the raw .puml source code or export the rendered diagram as a high-quality PNG."
+    "ai_generation": "Generate diagrams from prompts using 'gemini-3-flash-preview', unlocked by a session password or a custom key.",
+    "persistent_settings": "Remembers the API key using browser localStorage for persistence across sessions without cloud dependencies.",
+    "realtime_rendering": "Instant conversion of PlantUML syntax with private server rendering and public fallback.",
+    "export_capabilities": "Download raw .puml source code or export rendered PNG images."
   },
   "dependencies": ["Tailwind CSS", "Font Awesome", "pako.js (Zlib)", "Web Crypto API"],
   "last_updated": "2024-05-22"
@@ -94,7 +94,7 @@ TOOL_OVERVIEW_END
 
         <!-- AI Input Section -->
         <div class="flex-1 max-w-2xl flex items-center gap-2 bg-slate-100 p-1.5 rounded-full border border-slate-200 mx-4">
-            <div id="ai-status-dot" class="ml-3 w-3 h-3 rounded-full bg-red-400" title="AI Offline - Enter Password"></div>
+            <div id="ai-status-dot" class="ml-3 w-3 h-3 rounded-full bg-red-400" title="AI Offline"></div>
             <input type="text" id="ai-prompt" 
                 class="bg-transparent flex-1 px-2 outline-none text-sm text-slate-700 disabled:opacity-50" 
                 placeholder="Describe a diagram..." 
@@ -114,10 +114,17 @@ TOOL_OVERVIEW_END
         </div>
 
         <div class="flex items-center gap-2 flex-wrap">
-            <button id="unlock-btn" onclick="openUnlockModal()" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Unlock AI Features">
-                <i class="fas fa-key"></i>
-            </button>
+            <div class="flex items-center gap-1">
+                <button id="unlock-btn" onclick="openUnlockModal()" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Unlock Session Key">
+                    <i class="fas fa-key"></i>
+                </button>
+                <button id="custom-key-btn" onclick="openCustomKeyModal()" class="p-2 text-slate-600 hover:bg-slate-50 rounded-lg transition" title="Set Custom API Key">
+                    <i class="fas fa-user-cog"></i>
+                </button>
+            </div>
+            
             <div class="h-6 w-px bg-slate-300 mx-1"></div>
+            
             <div class="flex bg-slate-100 p-1 rounded-md">
                 <button onclick="handleAction('cut')" title="Cut" class="p-2 hover:bg-white rounded transition text-slate-600"><i class="fas fa-cut"></i></button>
                 <button onclick="handleAction('copy')" title="Copy" class="p-2 hover:bg-white rounded transition text-slate-600"><i class="fas fa-copy"></i></button>
@@ -177,10 +184,10 @@ Browser --> User: Display Diagram
         </div>
     </main>
 
-    <!-- Modal: Unlock AI -->
+    <!-- Modal: Unlock Session Key -->
     <div id="unlock-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
-            <h2 class="text-xl font-bold text-slate-800 mb-2">Unlock AI Capabilities</h2>
+            <h2 class="text-xl font-bold text-slate-800 mb-2">Unlock Session AI</h2>
             <p class="text-slate-500 text-sm mb-6">Enter the session password provided by the instructor.</p>
             <div class="space-y-4">
                 <div class="relative">
@@ -188,13 +195,40 @@ Browser --> User: Display Diagram
                         class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition pr-12" 
                         placeholder="Enter password..."
                         onkeydown="if(event.key === 'Enter') attemptUnlock()">
-                    <button onclick="togglePasswordVisibility()" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition">
-                        <i id="eye-icon" class="fas fa-eye"></i>
+                    <button onclick="toggleVisibility('session-pw', 'eye-session')" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition">
+                        <i id="eye-session" class="fas fa-eye"></i>
                     </button>
                 </div>
                 <div class="flex gap-2">
                     <button onclick="closeUnlockModal()" class="flex-1 py-3 text-slate-600 font-medium hover:bg-slate-50 rounded-xl transition">Cancel</button>
                     <button onclick="attemptUnlock()" class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition">Enable AI</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Custom API Key -->
+    <div id="custom-key-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
+            <h2 class="text-xl font-bold text-slate-800 mb-2">Set Custom API Key</h2>
+            <p class="text-slate-500 text-sm mb-4">Enter your Gemini API key. This will be stored locally in your browser for your next session.</p>
+            <p class="text-xs text-indigo-600 mb-6 flex items-center gap-1">
+                <i class="fas fa-external-link-alt text-[10px]"></i>
+                <a href="https://aistudio.google.com/api-keys" target="_blank" class="hover:underline font-medium">Get an API key from Google AI Studio</a>
+            </p>
+            <div class="space-y-4">
+                <div class="relative">
+                    <input type="password" id="custom-key-input" 
+                        class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition pr-12" 
+                        placeholder="Paste your API key here..."
+                        onkeydown="if(event.key === 'Enter') saveCustomKey()">
+                    <button onclick="toggleVisibility('custom-key-input', 'eye-custom')" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition">
+                        <i id="eye-custom" class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="closeCustomKeyModal()" class="flex-1 py-3 text-slate-600 font-medium hover:bg-slate-50 rounded-xl transition">Cancel</button>
+                    <button onclick="saveCustomKey()" class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition">Save & Enable</button>
                 </div>
             </div>
         </div>
@@ -226,18 +260,21 @@ Browser --> User: Display Diagram
     </div>
 
     <script>
-        // --- Configuration ---
+        // --- Configuration & Initialization ---
         const CLOUD_RUN_URL = "https://plantuml-server-486919769824.europe-west1.run.app";
         const PUBLIC_FALLBACK_URL = "https://www.plantuml.com/plantuml";
-        let DECRYPTED_API_KEY = "";
-        let debounceTimer;
-
-        // ENCRYPTED JSON Payload using 'dhcw.engineers.plant.seeds'
+        const STORAGE_KEY = 'plantuml_ai_key_v1';
+        
+        // Encrypted JSON Payload from turn history
         const ENCRYPTED_KEY_DATA = {
             "iv": "7e55c22251833e839352415c",
             "ciphertext": "61a4821caa22a32f09dc557e1eb551bb283b9075524d5ad40f1fc86ed1d40945af8df1ebb4cf030c617f8136425fcc6cdf074aa51caf59"
         };
 
+        let DECRYPTED_API_KEY = "";
+        let debounceTimer;
+
+        // Elements
         const editor = document.getElementById('editor');
         const diagramImg = document.getElementById('diagram-img');
         const loading = document.getElementById('loading');
@@ -246,6 +283,21 @@ Browser --> User: Display Diagram
         const charCount = document.getElementById('char-count');
         const statusText = document.getElementById('status');
         const toast = document.getElementById('toast');
+
+        // --- Persistence Logic ---
+
+        function loadSavedKey() {
+            const savedKey = localStorage.getItem(STORAGE_KEY);
+            if (savedKey) {
+                DECRYPTED_API_KEY = savedKey;
+                enableUI();
+                showToast("Stored API key loaded");
+            }
+        }
+
+        function saveKeyToStorage(key) {
+            localStorage.setItem(STORAGE_KEY, key);
+        }
 
         // --- Auth & Security ---
 
@@ -257,6 +309,7 @@ Browser --> User: Display Diagram
                 const unlocked = await decryptApiKey(password);
                 if (unlocked) {
                     DECRYPTED_API_KEY = unlocked;
+                    saveKeyToStorage(unlocked);
                     enableUI();
                     closeUnlockModal();
                     showToast("AI Features Enabled");
@@ -264,6 +317,17 @@ Browser --> User: Display Diagram
             } catch (e) {
                 showToast("Invalid password");
             }
+        }
+
+        async function saveCustomKey() {
+            const customKey = document.getElementById('custom-key-input').value.trim();
+            if (!customKey) return;
+            
+            DECRYPTED_API_KEY = customKey;
+            saveKeyToStorage(customKey);
+            enableUI();
+            closeCustomKeyModal();
+            showToast("Custom API key saved");
         }
 
         async function decryptApiKey(password) {
@@ -285,15 +349,15 @@ Browser --> User: Display Diagram
             }
         }
 
-        function togglePasswordVisibility() {
-            const pwInput = document.getElementById('session-pw');
-            const eyeIcon = document.getElementById('eye-icon');
-            if (pwInput.type === 'password') {
-                pwInput.type = 'text';
-                eyeIcon.classList.replace('fa-eye', 'fa-eye-slash');
+        function toggleVisibility(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
             } else {
-                pwInput.type = 'password';
-                eyeIcon.classList.replace('fa-eye-slash', 'fa-eye');
+                input.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
             }
         }
 
@@ -312,8 +376,13 @@ Browser --> User: Display Diagram
             document.getElementById('unlock-btn').classList.add('hidden');
         }
 
-        // --- Modals & Expanders ---
+        // --- Modals ---
 
+        function openUnlockModal() { document.getElementById('unlock-modal').classList.remove('hidden'); document.getElementById('session-pw').focus(); }
+        function closeUnlockModal() { document.getElementById('unlock-modal').classList.add('hidden'); }
+        function openCustomKeyModal() { document.getElementById('custom-key-modal').classList.remove('hidden'); document.getElementById('custom-key-input').focus(); }
+        function closeCustomKeyModal() { document.getElementById('custom-key-modal').classList.add('hidden'); }
+        
         function openAIExpandModal() {
             const prompt = document.getElementById('ai-prompt').value;
             document.getElementById('ai-prompt-multiline').value = prompt;
@@ -339,20 +408,18 @@ Browser --> User: Display Diagram
             }
         }
 
-        // --- AI Generation (with Debugging) ---
+        // --- AI Generation ---
 
         async function generateWithAI() {
             const prompt = document.getElementById('ai-prompt').value.trim();
             if (!prompt || !DECRYPTED_API_KEY) return;
             
             console.log("--- AI Generation Started ---");
-            console.log("User Prompt:", prompt);
-            
             aiLoading.classList.remove('hidden');
             const systemPrompt = "You are a PlantUML expert. Output ONLY valid PlantUML code. Do not include markdown code blocks. Ensure diagrams start with @startuml and end with @enduml.";
             
             try {
-                // Using the requested model string: gemini-3-flash-preview
+                // Exact model string: gemini-3-flash-preview
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${DECRYPTED_API_KEY}`;
                 
                 const response = await fetch(apiUrl, {
@@ -364,8 +431,6 @@ Browser --> User: Display Diagram
                     })
                 });
                 
-                console.log("Response Status:", response.status, response.statusText);
-                
                 const data = await response.json();
                 console.log("Raw Response Data:", data);
 
@@ -374,18 +439,11 @@ Browser --> User: Display Diagram
                 }
 
                 let resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                console.log("Extracted result text:", resultText);
-                
                 if (resultText) {
-                    // Clean up any potential markdown leftovers
                     resultText = resultText.replace(/```[a-z]*\n/g, "").replace(/```/g, "").trim();
-                    
                     editor.value = resultText;
                     updateDiagram();
                     showToast("Diagram Generated");
-                } else {
-                    console.error("No text content found in candidates.");
-                    showToast("AI returned empty result");
                 }
             } catch (err) {
                 console.error("Generation Error:", err);
@@ -434,10 +492,6 @@ Browser --> User: Display Diagram
                 const script = document.createElement('script');
                 script.src = "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js";
                 script.onload = () => processUpdate(code);
-                script.onerror = () => {
-                    showError();
-                    showToast("Library load failed");
-                };
                 document.head.appendChild(script);
             } else processUpdate(code);
         }
@@ -514,15 +568,7 @@ Browser --> User: Display Diagram
         function showToast(msg) {
             toast.textContent = msg;
             toast.classList.remove('translate-y-20', 'opacity-0');
-            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 2000);
-        }
-
-        function openUnlockModal() { 
-            document.getElementById('unlock-modal').classList.remove('hidden'); 
-            document.getElementById('session-pw').focus(); 
-        }
-        function closeUnlockModal() { 
-            document.getElementById('unlock-modal').classList.add('hidden'); 
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 2500);
         }
 
         // --- Event Binding ---
@@ -545,7 +591,10 @@ Browser --> User: Display Diagram
             if (e.key === 'Enter') generateWithAI();
         });
 
-        window.onload = updateDiagram;
+        window.onload = () => {
+            loadSavedKey();
+            updateDiagram();
+        };
     </script>
 </body>
 </html>
