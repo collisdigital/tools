@@ -23,18 +23,6 @@ TOOL_OVERVIEW_END
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
-            background-color: #f8fafc;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .editor-container {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-        }
         #editor {
             font-family: 'Fira Code', 'Cascadia Code', 'Courier New', Courier, monospace;
             resize: none;
@@ -81,7 +69,7 @@ TOOL_OVERVIEW_END
         }
     </style>
 </head>
-<body>
+<body class="flex flex-col h-[100dvh] overflow-hidden bg-slate-50">
 
     <!-- Header / Toolbar -->
     <header class="bg-white border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-4 z-10 shadow-sm">
@@ -140,9 +128,9 @@ TOOL_OVERVIEW_END
     </header>
 
     <!-- Main Workspace -->
-    <main class="editor-container flex-col md:flex-row">
+    <div class="flex-1 flex overflow-hidden flex-col md:flex-row w-full">
         <!-- Editor Side -->
-        <div class="w-full md:w-1/2 flex flex-col relative border-r border-slate-200">
+        <div class="flex-1 w-full md:w-1/2 flex flex-col relative border-b md:border-b-0 md:border-r border-slate-200">
             <div class="bg-slate-800 px-3 py-1 text-xs text-slate-400 font-mono flex justify-between uppercase tracking-wider">
                 <span>Editor</span>
                 <span id="char-count">0 chars</span>
@@ -166,7 +154,7 @@ Browser --> User: Display Diagram
         </div>
 
         <!-- Preview Side -->
-        <div class="w-full md:w-1/2 flex flex-col bg-white overflow-hidden">
+        <div class="flex-1 w-full md:w-1/2 flex flex-col bg-white overflow-hidden">
             <div class="bg-slate-100 px-3 py-1 text-xs text-slate-500 font-sans flex justify-between uppercase tracking-wider">
                 <span>Preview (Cloud Run Instance)</span>
                 <span id="status">Ready</span>
@@ -182,7 +170,7 @@ Browser --> User: Display Diagram
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 
     <!-- Modal: Unlock Session Key -->
     <div id="unlock-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
