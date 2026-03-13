@@ -10,6 +10,7 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
+				"GitHub.copilot",
 				"ms-python.python",
 				"ms-python.vscode-pylance",
 				"skellock.just"
