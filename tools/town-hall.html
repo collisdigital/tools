@@ -1,0 +1,508 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "DHCW Town Hall Presenter",
+  "description": "A presentation tool for NHS Wales/DHCW Town Hall meetings that combines a PDF slide viewer with a live, scrolling ticker-tape for staff shout-outs.",
+  "functionality": {
+    "pdf_presentation": "Upload, view, and navigate PDF slides in a full-screen presentation mode.",
+    "shoutout_management": "Edit mode to add, manage, and queue team shout-outs for the scrolling ticker tape."
+  },
+  "dependencies": [
+    "react",
+    "lucide-react",
+    "pdf.js (via CDN)",
+    "Tailwind CSS"
+  ],
+  "last_updated": "2026-04-24"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DHCW Town Hall Presenter</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Import Map to allow modern module imports in the browser -->
+  <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.292.0?external=react"
+      }
+    }
+  </script>
+  
+  <!-- Babel for in-browser JSX transpilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- The application code, defined as a Babel-processed module -->
+  <script type="text/babel" data-type="module">
+    import React, { useState, useEffect, useRef, useCallback } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { Upload, Play, Trash2, Plus, MonitorPlay, X, FileText, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+
+    function App() {
+      const [mode, setMode] = useState('edit'); // 'edit' or 'present'
+      const [shoutOuts, setShoutOuts] = useState([
+        { id: 1, to: 'The Infrastructure Team', from: 'Jane (Product)', message: 'Amazing work on the cloud migration over the weekend!' },
+        { id: 2, to: 'David Davies', from: 'Sarah Smith', message: 'Thanks for stepping in to help with the Q3 reporting.' }
+      ]);
+      const [pdfFile, setPdfFile] = useState(null);
+      const [pdfFileName, setPdfFileName] = useState('');
+      
+      // Form State
+      const [newTo, setNewTo] = useState('');
+      const [newFrom, setNewFrom] = useState('');
+      const [newMessage, setNewMessage] = useState('');
+
+      // PDF.js State
+      const [pdfjsLoaded, setPdfjsLoaded] = useState(false);
+      const [pdfDoc, setPdfDoc] = useState(null);
+      const [pageNum, setPageNum] = useState(1);
+      const [numPages, setNumPages] = useState(0);
+      const [isRendering, setIsRendering] = useState(false);
+      const canvasRef = useRef(null);
+
+      // NHS Colors
+      const nhsBlue = '#005EB8';
+      const nhsDarkBlue = '#003087';
+      const nhsLightBlue = '#41B6E6';
+
+      // Load PDF.js dynamically
+      useEffect(() => {
+        if (window.pdfjsLib) {
+          setPdfjsLoaded(true);
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        script.onload = () => {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          setPdfjsLoaded(true);
+        };
+        document.body.appendChild(script);
+      }, []);
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type === 'application/pdf') {
+          const fileUrl = URL.createObjectURL(file);
+          setPdfFile(fileUrl);
+          setPdfFileName(file.name);
+          setPdfDoc(null);
+          setPageNum(1);
+          setNumPages(0);
+        } else {
+          alert('Please upload a valid PDF file.');
+        }
+      };
+
+      const addShoutOut = (e) => {
+        e.preventDefault();
+        if (!newTo.trim() || !newMessage.trim()) return;
+        setShoutOuts([...shoutOuts, {
+          id: Date.now(),
+          to: newTo,
+          from: newFrom || 'Anonymous',
+          message: newMessage
+        }]);
+        setNewTo('');
+        setNewFrom('');
+        setNewMessage('');
+      };
+
+      const deleteShoutOut = (id) => {
+        setShoutOuts(shoutOuts.filter(s => s.id !== id));
+      };
+
+      const startPresentation = async () => {
+        if (!pdfFile) {
+          alert("Please upload your PDF slides first.");
+          return;
+        }
+        setMode('present');
+      };
+
+      // PDF Rendering Logic
+      const renderPage = useCallback(async (num, doc = pdfDoc) => {
+        if (!doc || !canvasRef.current || isRendering) return;
+        
+        setIsRendering(true);
+        try {
+          const page = await doc.getPage(num);
+          const canvas = canvasRef.current;
+          const ctx = canvas.getContext('2d');
+
+          // Clear previous canvas
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          const viewport = page.getViewport({ scale: 1 });
+          
+          // Calculate scale to fit screen - reserving 80px height for the ticker at bottom
+          const containerWidth = window.innerWidth;
+          const containerHeight = window.innerHeight - 80;
+          
+          // Add slight padding to the scale calculation (0.98) so it doesn't touch edges absolutely
+          const scale = Math.min((containerWidth * 0.98) / viewport.width, (containerHeight * 0.98) / viewport.height);
+          const scaledViewport = page.getViewport({ scale });
+
+          canvas.height = scaledViewport.height;
+          canvas.width = scaledViewport.width;
+
+          const renderContext = {
+            canvasContext: ctx,
+            viewport: scaledViewport,
+          };
+
+          await page.render(renderContext).promise;
+        } catch (error) {
+          console.error('Error rendering page:', error);
+        } finally {
+          setIsRendering(false);
+        }
+      }, [pdfDoc, isRendering]);
+
+      // Load Document when entering Present mode
+      useEffect(() => {
+        if (mode === 'present' && pdfFile && pdfjsLoaded && !pdfDoc) {
+          const loadDoc = async () => {
+            try {
+              const loadingTask = window.pdfjsLib.getDocument(pdfFile);
+              const doc = await loadingTask.promise;
+              setPdfDoc(doc);
+              setNumPages(doc.numPages);
+              renderPage(pageNum, doc);
+            } catch (error) {
+              console.error("Error loading PDF: ", error);
+            }
+          };
+          loadDoc();
+        }
+      }, [mode, pdfFile, pdfjsLoaded, pdfDoc, pageNum, renderPage]);
+
+      // Re-render when page changes
+      useEffect(() => {
+        if (mode === 'present' && pdfDoc) {
+          renderPage(pageNum);
+        }
+      }, [pageNum, mode, pdfDoc, renderPage]);
+
+      // Handle Window Resize in Presentation Mode
+      useEffect(() => {
+        const handleResize = () => {
+          if (mode === 'present' && pdfDoc) {
+            renderPage(pageNum);
+          }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+      }, [mode, pdfDoc, pageNum, renderPage]);
+
+      // Keyboard navigation
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (mode !== 'present') return;
+          
+          if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+            if (pageNum < numPages) setPageNum(prev => prev + 1);
+          } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+            if (pageNum > 1) setPageNum(prev => prev - 1);
+          } else if (e.key === 'Escape') {
+            setMode('edit');
+          }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, [mode, pageNum, numPages]);
+
+      // Ticker content generation (duplicated for seamless loop)
+      const tickerItems = shoutOuts.length > 0 ? shoutOuts : [{ id: 0, to: 'The Team', from: 'DHCW', message: 'Welcome to the Town Hall!' }];
+      const duplicateTicker = [...tickerItems, ...tickerItems, ...tickerItems];
+
+      if (mode === 'present') {
+        return (
+          <div className="flex flex-col h-screen w-screen bg-black overflow-hidden font-sans">
+            {/* Custom Styles for Ticker */}
+            <style dangerouslySetInnerHTML={{__html: `
+              @keyframes ticker {
+                0% { transform: translateX(0); }
+                100% { transform: translateX(-33.33%); } /* Assuming 3 copies, shifting by 1/3 loops perfectly */
+              }
+              .animate-ticker {
+                display: inline-flex;
+                white-space: nowrap;
+                animation: ticker ${Math.max(tickerItems.length * 8, 20)}s linear infinite;
+              }
+              .animate-ticker:hover {
+                animation-play-state: paused;
+              }
+            `}} />
+
+            {/* Top Control Bar (Visible on hover) */}
+            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center opacity-0 hover:opacity-100 transition-opacity z-50 bg-gradient-to-b from-black/80 to-transparent text-white">
+              <div className="flex items-center space-x-2">
+                <span className="font-bold">DHCW Town Hall</span>
+                <span className="text-gray-400 text-sm">| Presenting: {pdfFileName}</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-sm bg-black/50 px-3 py-1 rounded-full">
+                  Page {pageNum} of {numPages}
+                </span>
+                <button 
+                  onClick={() => setMode('edit')}
+                  className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium transition-colors"
+                >
+                  <X className="w-4 h-4 mr-2" /> Exit Presentation
+                </button>
+              </div>
+            </div>
+
+            {/* Navigation Overlay Areas */}
+            <div 
+              className="absolute left-0 top-0 bottom-20 w-1/6 z-40 cursor-pointer flex items-center justify-start pl-4 group"
+              onClick={() => pageNum > 1 && setPageNum(prev => prev - 1)}
+            >
+              <div className="opacity-0 group-hover:opacity-100 p-2 bg-black/40 rounded-full text-white transition-opacity">
+                <ChevronLeft className="w-10 h-10" />
+              </div>
+            </div>
+            <div 
+              className="absolute right-0 top-0 bottom-20 w-1/6 z-40 cursor-pointer flex items-center justify-end pr-4 group"
+              onClick={() => pageNum < numPages && setPageNum(prev => prev + 1)}
+            >
+              <div className="opacity-0 group-hover:opacity-100 p-2 bg-black/40 rounded-full text-white transition-opacity">
+                <ChevronRight className="w-10 h-10" />
+              </div>
+            </div>
+
+            {/* Main PDF Display */}
+            <div className="flex-1 flex items-center justify-center bg-[#1a1a1a] relative z-10 overflow-hidden">
+              {!pdfDoc && (
+                <div className="text-white animate-pulse">Loading presentation...</div>
+              )}
+              <canvas ref={canvasRef} className="shadow-2xl" />
+            </div>
+
+            {/* Ticker Tape */}
+            <div 
+              className="h-20 w-full flex items-center overflow-hidden shrink-0 relative z-50 border-t-4"
+              style={{ backgroundColor: nhsBlue, borderColor: nhsLightBlue }}
+            >
+              <div className="animate-ticker">
+                {duplicateTicker.map((s, i) => (
+                  <div key={`${s.id}-${i}`} className="inline-flex items-center mx-12 text-2xl text-white">
+                    <span className="text-yellow-300 mr-3">⭐</span>
+                    <span className="font-bold mr-2">To: {s.to}</span>
+                    <span className="text-blue-200 mr-2">|</span>
+                    <span className="italic mr-3 text-blue-100">From: {s.from}</span>
+                    <span className="font-light tracking-wide">— "{s.message}"</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // --- EDIT MODE ---
+      return (
+        <div className="min-h-screen bg-gray-50 font-sans">
+          {/* Header */}
+          <header className="text-white shadow-md relative z-10" style={{ backgroundColor: nhsBlue }}>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
+              <div className="flex items-center">
+                {/* NHS Logo Placeholder styling */}
+                <div className="bg-white text-[#005EB8] font-bold text-xl px-3 py-1 mr-4 tracking-tighter">
+                  NHS
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight">Town Hall Presenter</h1>
+                  <p className="text-sm text-blue-100">Digital Health and Care Wales (DHCW)</p>
+                </div>
+              </div>
+              <button
+                onClick={startPresentation}
+                disabled={!pdfFile}
+                className={`flex items-center px-6 py-3 rounded-md font-semibold transition-all shadow-sm
+                  ${pdfFile 
+                    ? 'bg-green-500 hover:bg-green-600 text-white transform hover:scale-105' 
+                    : 'bg-gray-400 text-gray-200 cursor-not-allowed'}`}
+              >
+                <MonitorPlay className="w-5 h-5 mr-2" />
+                Start Presentation
+              </button>
+            </div>
+          </header>
+
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              
+              {/* Left Column: Slides Management */}
+              <div className="lg:col-span-1 space-y-6">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center" style={{ color: nhsDarkBlue }}>
+                    <FileText className="w-5 h-5 mr-2" style={{ color: nhsBlue }} />
+                    1. Upload Presentation Slides
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Upload the main slide deck (PDF format only) for the Town Hall meeting.
+                  </p>
+                  
+                  <div className="mt-2">
+                    <label 
+                      htmlFor="file-upload" 
+                      className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                    >
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                        <p className="mb-2 text-sm text-gray-500 font-medium">Click to upload a PDF</p>
+                      </div>
+                      <input 
+                        id="file-upload" 
+                        type="file" 
+                        accept="application/pdf" 
+                        className="hidden" 
+                        onChange={handleFileUpload} 
+                      />
+                    </label>
+                  </div>
+                  
+                  {pdfFileName && (
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md flex items-center text-sm text-blue-800">
+                      <FileText className="w-4 h-4 mr-2 text-blue-600 shrink-0" />
+                      <span className="truncate font-medium">{pdfFileName}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-blue-50 rounded-xl border border-blue-100 p-6">
+                  <h3 className="text-sm font-bold text-blue-900 mb-2 flex items-center">
+                    <Info className="w-4 h-4 mr-1" /> Presenter Controls
+                  </h3>
+                  <ul className="text-sm text-blue-800 space-y-2 list-disc pl-4 marker:text-blue-400">
+                    <li>Press <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">Space</kbd> or <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">→</kbd> for Next Page</li>
+                    <li>Press <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">←</kbd> for Previous Page</li>
+                    <li>Press <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">Esc</kbd> to exit full screen</li>
+                    <li>Hover at the top of the screen to view slide numbers and exit button.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Right Column: Shout-outs Management */}
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 h-full flex flex-col">
+                  <h2 className="text-lg font-bold mb-6 flex items-center" style={{ color: nhsDarkBlue }}>
+                    <span className="text-2xl mr-2">⭐</span> 
+                    2. Manage Shout-outs
+                  </h2>
+
+                  {/* Add New Form */}
+                  <form onSubmit={addShoutOut} className="bg-gray-50 p-5 rounded-lg border border-gray-200 mb-8">
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide">Add New Shout-out</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">To (Recipient / Team)</label>
+                        <input 
+                          type="text" 
+                          value={newTo}
+                          onChange={e => setNewTo(e.target.value)}
+                          placeholder="e.g. Front-end Dev Team"
+                          className="w-full rounded-md border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">From (Sender)</label>
+                        <input 
+                          type="text" 
+                          value={newFrom}
+                          onChange={e => setNewFrom(e.target.value)}
+                          placeholder="e.g. John Smith"
+                          className="w-full rounded-md border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                      <textarea 
+                        value={newMessage}
+                        onChange={e => setNewMessage(e.target.value)}
+                        placeholder="Briefly describe why you are shouting them out..."
+                        rows="2"
+                        className="w-full rounded-md border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                        required
+                      />
+                    </div>
+                    <button 
+                      type="submit" 
+                      className="flex items-center text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm"
+                      style={{ backgroundColor: nhsBlue }}
+                    >
+                      <Plus className="w-4 h-4 mr-1" /> Add to Ticker Tape
+                    </button>
+                  </form>
+
+                  {/* Shout-outs List */}
+                  <div className="flex-1 flex flex-col">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                        Current Queue ({shoutOuts.length})
+                      </h3>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto pr-2" style={{ maxHeight: '400px' }}>
+                      {shoutOuts.length === 0 ? (
+                        <div className="text-center py-10 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+                          No shout-outs added yet. Use the form above to build your ticker queue.
+                        </div>
+                      ) : (
+                        <ul className="space-y-3">
+                          {shoutOuts.map((shout, index) => (
+                            <li key={shout.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow transition-shadow flex items-start group relative">
+                              <div className="bg-yellow-100 text-yellow-600 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-4 shrink-0 mt-1">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1 pr-10">
+                                <p className="text-sm mb-1">
+                                  <span className="font-bold text-gray-900">{shout.to}</span>
+                                  <span className="text-gray-400 mx-2">|</span>
+                                  <span className="text-gray-600 italic">From: {shout.from}</span>
+                                </p>
+                                <p className="text-gray-800 text-sm">{shout.message}</p>
+                              </div>
+                              <button 
+                                onClick={() => deleteShoutOut(shout.id)}
+                                className="absolute right-4 top-4 text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors"
+                                title="Remove shout-out"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
