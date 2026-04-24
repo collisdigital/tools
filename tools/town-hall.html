@@ -5,7 +5,8 @@ TOOL_OVERVIEW_START
   "description": "A presentation tool for NHS Wales/DHCW Town Hall meetings that combines a PDF slide viewer with a live, scrolling ticker-tape for staff shout-outs.",
   "functionality": {
     "pdf_presentation": "Upload, view, and navigate PDF slides in a full-screen presentation mode.",
-    "shoutout_management": "Edit mode to add, manage, and queue team shout-outs for the scrolling ticker tape."
+    "shoutout_management": "Edit mode to add, manage, and queue team shout-outs for the scrolling ticker tape.",
+    "csv_import": "Import shout-outs in bulk from a CSV file (to,from,message) compatible with Excel exports."
   },
   "dependencies": [
     "react",
@@ -48,7 +49,7 @@ TOOL_OVERVIEW_END
   <script type="text/babel" data-type="module">
     import React, { useState, useEffect, useRef, useCallback } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Upload, Play, Trash2, Plus, MonitorPlay, X, FileText, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+    import { Upload, Play, Trash2, Plus, MonitorPlay, X, FileText, ChevronLeft, ChevronRight, Info, FileSpreadsheet } from 'lucide-react';
 
     function App() {
       const [mode, setMode] = useState('edit'); // 'edit' or 'present'
@@ -71,6 +72,7 @@ TOOL_OVERVIEW_END
       const [numPages, setNumPages] = useState(0);
       const isRenderingRef = useRef(false);
       const canvasRef = useRef(null);
+      const csvInputRef = useRef(null);
 
       // NHS Colors
       const nhsBlue = '#005EB8';
@@ -122,6 +124,70 @@ TOOL_OVERVIEW_END
 
       const deleteShoutOut = (id) => {
         setShoutOuts(shoutOuts.filter(s => s.id !== id));
+      };
+
+      // Parse a single CSV row handling quoted fields and Excel exports
+      const parseCsvRow = (row) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < row.length; i++) {
+          const char = row[i];
+          if (char === '"') {
+            if (inQuotes && row[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      };
+
+      const handleCsvUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        // Reset so the same file can be re-imported if needed
+        e.target.value = '';
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const text = evt.target.result;
+          // Normalise line endings (Excel on Windows uses CRLF)
+          const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim() !== '');
+          if (lines.length === 0) return;
+
+          // Detect and skip a header row
+          const firstRow = parseCsvRow(lines[0]);
+          const isHeader = firstRow.length >= 3 &&
+            firstRow[0].toLowerCase() === 'to' &&
+            firstRow[1].toLowerCase() === 'from' &&
+            firstRow[2].toLowerCase() === 'message';
+          const dataLines = isHeader ? lines.slice(1) : lines;
+
+          const imported = dataLines
+            .map(line => parseCsvRow(line))
+            .filter(cols => cols.length >= 3 && cols[0])
+            .map(cols => ({
+              id: Date.now() + Math.random(),
+              to: cols[0],
+              from: cols[1] || 'Anonymous',
+              message: cols[2]
+            }));
+
+          if (imported.length === 0) {
+            alert('No valid rows found. Ensure the CSV has columns: to, from, message');
+            return;
+          }
+          setShoutOuts(prev => [...prev, ...imported]);
+        };
+        reader.readAsText(file);
       };
 
       const startPresentation = async () => {
@@ -337,10 +403,6 @@ TOOL_OVERVIEW_END
           <header className="text-white shadow-md relative z-10" style={{ backgroundColor: nhsBlue }}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
               <div className="flex items-center">
-                {/* NHS Logo Placeholder styling */}
-                <div className="bg-white text-[#005EB8] font-bold text-xl px-3 py-1 mr-4 tracking-tighter">
-                  NHS
-                </div>
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight">Town Hall Presenter</h1>
                   <p className="text-sm text-blue-100">Digital Health and Care Wales (DHCW)</p>
@@ -424,7 +486,34 @@ TOOL_OVERVIEW_END
 
                   {/* Add New Form */}
                   <form onSubmit={addShoutOut} className="bg-gray-50 p-5 rounded-lg border border-gray-200 mb-8">
-                    <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide">Add New Shout-out</h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Add New Shout-out</h3>
+                      <div>
+                        <input
+                          type="file"
+                          accept=".csv,text/csv"
+                          ref={csvInputRef}
+                          className="hidden"
+                          onChange={handleCsvUpload}
+                        />
+                        <div className="relative group/tooltip">
+                          <button
+                            type="button"
+                            onClick={() => csvInputRef.current && csvInputRef.current.click()}
+                            className="flex items-center px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 transition-colors"
+                          >
+                            <FileSpreadsheet className="w-4 h-4 mr-1.5" />
+                            Import CSV
+                          </button>
+                          <div className="absolute right-0 top-full mt-2 w-72 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl z-50 pointer-events-none opacity-0 group-hover/tooltip:opacity-100 transition-opacity duration-150">
+                            <p className="font-bold mb-1.5 text-green-300">Expected CSV format</p>
+                            <p className="mb-2 text-gray-300">Three columns, compatible with Excel exports. A header row is optional and will be skipped automatically.</p>
+                            <code className="block bg-gray-800 rounded p-2 leading-relaxed text-green-200 whitespace-pre">to,from,message{'\n'}Team Name,Sender,Well done!</code>
+                            <div className="absolute -top-1.5 right-4 w-3 h-3 bg-gray-900 rotate-45" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">To (Recipient / Team)</label>
