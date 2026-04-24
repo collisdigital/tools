@@ -268,6 +268,15 @@ TOOL_OVERVIEW_END
     .btn-delete { @apply absolute right-4 top-4 p-1 rounded-md transition-colors; color: var(--color-text-faint); }
     .btn-delete:hover  { color: var(--color-danger-text); background-color: var(--color-danger-surface); }
 
+    /* Background colour toggle – segmented control in edit view */
+    .btn-bg-toggle              { @apply px-4 py-1.5 text-sm font-medium transition-colors inline-flex items-center gap-2; }
+    .btn-bg-toggle--active      { background-color: var(--color-brand); color: #ffffff; }
+    .btn-bg-toggle--off         { background-color: var(--color-surface-subtle); color: var(--color-text-muted); }
+    .btn-bg-toggle--divider     { border-left: 1px solid var(--color-border-muted); }
+    .btn-bg-swatch              { @apply inline-block w-3 h-3 rounded-full shrink-0; box-shadow: 0 0 0 1.5px var(--color-border-muted); }
+    .btn-bg-swatch--black       { background-color: #111827; }
+    .btn-bg-swatch--white       { background-color: #ffffff; }
+
     /* Cards */
     .card          { @apply rounded-xl shadow-sm p-6; background-color: var(--color-surface); border: 1px solid var(--color-border); }
     .card--stretch { @apply h-full flex flex-col; }
@@ -358,6 +367,7 @@ TOOL_OVERVIEW_END
     const SECONDS_PER_ITEM   = 8;    // animation speed: seconds per shout-out card
     const MIN_ANIM_DURATION  = 20;   // minimum total ticker duration in seconds
     const LS_KEY             = 'townhall-shoutouts';
+    const LS_KEY_BG          = 'townhall-canvas-bg';
     const DEFAULT_TICKER_ITEM = Object.freeze({
       id: 'default',
       to: 'The Team',
@@ -397,7 +407,7 @@ TOOL_OVERVIEW_END
     // PresentationView – full-screen PDF viewer with shout-out ticker tape.
     //   Manages its own PDF document lifecycle, page rendering, and navigation.
     // ---------------------------------------------------------------------------
-    function PresentationView({ pdfFileUrl, pdfFileName, shoutOuts, pdfjsLoaded, onExit, onError }) {
+    function PresentationView({ pdfFileUrl, pdfFileName, shoutOuts, pdfjsLoaded, canvasBg, onExit, onError }) {
       const [pdfDoc, setPdfDoc] = useState(null);
       const [pageNum, setPageNum] = useState(1);
       const [numPages, setNumPages] = useState(0);
@@ -603,9 +613,9 @@ TOOL_OVERVIEW_END
           </button>
 
           {/* Main PDF Display */}
-          <div className="pres-canvas-area">
+          <div className="pres-canvas-area" style={{ backgroundColor: canvasBg === 'white' ? '#ffffff' : '#1a1a1a' }}>
             {!pdfDoc && (
-              <div className="pres-loading">Loading presentation…</div>
+              <div className="pres-loading" style={{ color: canvasBg === 'white' ? '#111827' : '#ffffff' }}>Loading presentation…</div>
             )}
             <canvas
               ref={canvasRef}
@@ -664,6 +674,7 @@ TOOL_OVERVIEW_END
       const [newFrom, setNewFrom] = useState('');
       const [newMessage, setNewMessage] = useState('');
 
+      const [canvasBg, setCanvasBg] = useState(() => localStorage.getItem(LS_KEY_BG) || 'black');
       const [pdfjsLoaded, setPdfjsLoaded] = useState(false);
       const csvInputRef    = useRef(null);
       const pdfFileUrlRef  = useRef(null); // tracks latest blob URL for unmount cleanup
@@ -672,13 +683,17 @@ TOOL_OVERVIEW_END
       useEffect(() => { pdfFileUrlRef.current = pdfFile; }, [pdfFile]);
 
       // -----------------------------------------------------------------------
-      // Persist shout-outs to localStorage whenever they change
+      // Persist shout-outs and settings to localStorage whenever they change
       // -----------------------------------------------------------------------
       useEffect(() => {
         try {
           localStorage.setItem(LS_KEY, JSON.stringify(shoutOuts));
         } catch { /* storage quota exceeded – silently ignore */ }
       }, [shoutOuts]);
+
+      useEffect(() => {
+        localStorage.setItem(LS_KEY_BG, canvasBg);
+      }, [canvasBg]);
 
       // -----------------------------------------------------------------------
       // Load PDF.js dynamically; clean up the injected <script> on unmount
@@ -823,6 +838,7 @@ TOOL_OVERVIEW_END
             pdfFileName={pdfFileName}
             shoutOuts={shoutOuts}
             pdfjsLoaded={pdfjsLoaded}
+            canvasBg={canvasBg}
             onExit={() => setMode('edit')}
             onError={(msg) => { setErrorMessage(msg); setMode('edit'); }}
           />
@@ -904,6 +920,36 @@ TOOL_OVERVIEW_END
                       <span className="file-badge-name">{pdfFileName}</span>
                     </div>
                   )}
+
+                  {/* Page colour picker */}
+                  <div className="mt-5">
+                    <p className="form-label">Page Colour</p>
+                    <div
+                      className="inline-flex rounded-md overflow-hidden mt-1"
+                      role="group"
+                      aria-label="Page colour"
+                      style={{ border: '1px solid var(--color-border-muted)' }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setCanvasBg('black')}
+                        aria-pressed={canvasBg === 'black'}
+                        className={`btn-bg-toggle ${canvasBg === 'black' ? 'btn-bg-toggle--active' : 'btn-bg-toggle--off'}`}
+                      >
+                        <span className="btn-bg-swatch btn-bg-swatch--black" aria-hidden="true" />
+                        Black
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCanvasBg('white')}
+                        aria-pressed={canvasBg === 'white'}
+                        className={`btn-bg-toggle btn-bg-toggle--divider ${canvasBg === 'white' ? 'btn-bg-toggle--active' : 'btn-bg-toggle--off'}`}
+                      >
+                        <span className="btn-bg-swatch btn-bg-swatch--white" aria-hidden="true" />
+                        White
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="info-card">
