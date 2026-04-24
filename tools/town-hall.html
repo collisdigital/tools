@@ -113,7 +113,278 @@ TOOL_OVERVIEW_END
     const PDFJS_WORKER_INTEGRITY = 'sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2';
 
     // ---------------------------------------------------------------------------
-    // App
+    // Utility – CSV row parser (handles quoted fields & escaped double-quotes)
+    // ---------------------------------------------------------------------------
+    const parseCsvRow = (row) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < row.length; i++) {
+        const char = row[i];
+        if (char === '"') {
+          if (inQuotes && row[i + 1] === '"') { current += '"'; i++; }
+          else { inQuotes = !inQuotes; }
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
+    // ---------------------------------------------------------------------------
+    // PresentationView – full-screen PDF viewer with shout-out ticker tape.
+    //   Manages its own PDF document lifecycle, page rendering, and navigation.
+    // ---------------------------------------------------------------------------
+    function PresentationView({ pdfFileUrl, pdfFileName, shoutOuts, pdfjsLoaded, onExit, onError }) {
+      const [pdfDoc, setPdfDoc] = useState(null);
+      const [pageNum, setPageNum] = useState(1);
+      const [numPages, setNumPages] = useState(0);
+
+      const isRenderingRef = useRef(false);
+      const pendingPageRef = useRef(null);
+      const canvasRef      = useRef(null);
+      const pdfDocRef      = useRef(null);
+
+      useEffect(() => { pdfDocRef.current = pdfDoc; }, [pdfDoc]);
+
+      // Lock body scroll while presenting
+      useEffect(() => {
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden';
+        return () => {
+          document.documentElement.style.overflow = '';
+          document.body.style.overflow = '';
+        };
+      }, []);
+
+      // Destroy PDF document on unmount
+      useEffect(() => {
+        return () => { if (pdfDocRef.current) pdfDocRef.current.destroy(); };
+      }, []);
+
+      // -----------------------------------------------------------------------
+      // Page rendering
+      // -----------------------------------------------------------------------
+      const renderPage = useCallback(async (num, doc = pdfDoc) => {
+        if (!doc || !canvasRef.current) return;
+        if (isRenderingRef.current) {
+          pendingPageRef.current = num;
+          return;
+        }
+        isRenderingRef.current = true;
+        try {
+          const page = await doc.getPage(num);
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          const viewport = page.getViewport({ scale: 1 });
+          const containerWidth  = window.innerWidth;
+          const containerHeight = window.innerHeight - TICKER_HEIGHT_PX;
+          const scale = Math.min(
+            (containerWidth  * SCALE_PADDING) / viewport.width,
+            (containerHeight * SCALE_PADDING) / viewport.height,
+          );
+          const scaledViewport = page.getViewport({ scale });
+          canvas.height = scaledViewport.height;
+          canvas.width  = scaledViewport.width;
+          await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+        } catch (err) {
+          if (!String(err?.message).includes('cancelled')) {
+            console.error('Error rendering page:', err);
+          }
+        } finally {
+          isRenderingRef.current = false;
+          if (pendingPageRef.current !== null) {
+            const next = pendingPageRef.current;
+            pendingPageRef.current = null;
+            renderPage(next, doc);
+          }
+        }
+      }, [pdfDoc]);
+
+      // -----------------------------------------------------------------------
+      // Effects
+      // -----------------------------------------------------------------------
+
+      // Load PDF document on mount
+      useEffect(() => {
+        if (!pdfFileUrl || !pdfjsLoaded || pdfDoc) return;
+        (async () => {
+          try {
+            const doc = await window.pdfjsLib.getDocument(pdfFileUrl).promise;
+            pdfDocRef.current = doc;
+            setPdfDoc(doc);
+            setNumPages(doc.numPages);
+            renderPage(1, doc);
+          } catch (err) {
+            console.error('Error loading PDF:', err);
+            onError('Failed to load the PDF. Please try re-uploading.');
+          }
+        })();
+      }, [pdfFileUrl, pdfjsLoaded, pdfDoc, renderPage, onError]);
+
+      // Re-render when the page number changes
+      useEffect(() => {
+        if (pdfDoc) renderPage(pageNum);
+      }, [pageNum, pdfDoc, renderPage]);
+
+      // Debounced resize handler (150 ms)
+      useEffect(() => {
+        let timer = null;
+        const handleResize = () => {
+          clearTimeout(timer);
+          timer = setTimeout(() => { if (pdfDoc) renderPage(pageNum); }, 150);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => { window.removeEventListener('resize', handleResize); clearTimeout(timer); };
+      }, [pdfDoc, pageNum, renderPage]);
+
+      // Keyboard navigation
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+            setPageNum(prev => Math.min(prev + 1, numPages));
+          } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+            setPageNum(prev => Math.max(prev - 1, 1));
+          } else if (e.key === 'Escape') {
+            onExit();
+          }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, [numPages, onExit]);
+
+      // Touch / swipe navigation
+      useEffect(() => {
+        let touchStartX = null;
+        const onTouchStart = (e) => { touchStartX = e.touches[0].clientX; };
+        const onTouchEnd = (e) => {
+          if (touchStartX === null) return;
+          const delta = touchStartX - e.changedTouches[0].clientX;
+          if (Math.abs(delta) > 50) {
+            setPageNum(prev =>
+              delta > 0 ? Math.min(prev + 1, numPages) : Math.max(prev - 1, 1)
+            );
+          }
+          touchStartX = null;
+        };
+        window.addEventListener('touchstart', onTouchStart, { passive: true });
+        window.addEventListener('touchend',   onTouchEnd,   { passive: true });
+        return () => {
+          window.removeEventListener('touchstart', onTouchStart);
+          window.removeEventListener('touchend',   onTouchEnd);
+        };
+      }, [numPages]);
+
+      // -----------------------------------------------------------------------
+      // Ticker data
+      // -----------------------------------------------------------------------
+      const tickerItems = useMemo(
+        () => shoutOuts.length > 0 ? shoutOuts : [DEFAULT_TICKER_ITEM],
+        [shoutOuts],
+      );
+      const duplicateTicker = useMemo(
+        () => [...tickerItems, ...tickerItems, ...tickerItems],
+        [tickerItems],
+      );
+      const tickerAnimDuration = useMemo(
+        () => Math.max(tickerItems.length * SECONDS_PER_ITEM, MIN_ANIM_DURATION),
+        [tickerItems],
+      );
+
+      // -----------------------------------------------------------------------
+      // Render
+      // -----------------------------------------------------------------------
+      return (
+        <div
+          className="flex flex-col h-screen w-screen bg-black overflow-hidden font-sans"
+          style={{ '--ticker-anim-duration': `${tickerAnimDuration}s` }}
+        >
+          {/* Top Control Bar – visible on hover */}
+          <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center opacity-0 hover:opacity-100 transition-opacity z-50 bg-gradient-to-b from-black/80 to-transparent text-white">
+            <div className="flex items-center space-x-2">
+              <span className="font-bold">Town Hall</span>
+              <span className="text-gray-400 text-sm">| Presenting: {pdfFileName}</span>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm bg-black/50 px-3 py-1 rounded-full" aria-live="polite">
+                Page {pageNum} of {numPages}
+              </span>
+              <button
+                onClick={onExit}
+                className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium transition-colors"
+              >
+                <X className="w-4 h-4 mr-2" aria-hidden="true" /> Exit Presentation
+              </button>
+            </div>
+          </div>
+
+          {/* Navigation – Previous slide */}
+          <button
+            aria-label="Previous slide"
+            onClick={() => setPageNum(prev => Math.max(prev - 1, 1))}
+            className="absolute left-0 top-0 bottom-20 w-1/6 z-40 flex items-center justify-start pl-4 group bg-transparent border-0 cursor-pointer"
+          >
+            <div className="opacity-0 group-hover:opacity-100 p-2 bg-black/40 rounded-full text-white transition-opacity">
+              <ChevronLeft className="w-10 h-10" aria-hidden="true" />
+            </div>
+          </button>
+
+          {/* Navigation – Next slide */}
+          <button
+            aria-label="Next slide"
+            onClick={() => setPageNum(prev => Math.min(prev + 1, numPages))}
+            className="absolute right-0 top-0 bottom-20 w-1/6 z-40 flex items-center justify-end pr-4 group bg-transparent border-0 cursor-pointer"
+          >
+            <div className="opacity-0 group-hover:opacity-100 p-2 bg-black/40 rounded-full text-white transition-opacity">
+              <ChevronRight className="w-10 h-10" aria-hidden="true" />
+            </div>
+          </button>
+
+          {/* Main PDF Display */}
+          <div className="flex-1 flex items-center justify-center bg-[#1a1a1a] relative z-10 overflow-hidden">
+            {!pdfDoc && (
+              <div className="text-white animate-pulse">Loading presentation…</div>
+            )}
+            <canvas
+              ref={canvasRef}
+              className="shadow-2xl"
+              role="img"
+              aria-label={`Presentation slide ${pageNum} of ${numPages}`}
+            />
+          </div>
+
+          {/* Ticker Tape */}
+          <div
+            role="marquee"
+            aria-label="Staff shout-outs"
+            className="shrink-0 relative z-50 border-t-4 overflow-hidden flex items-center"
+            style={{ height: `${TICKER_HEIGHT_PX}px`, backgroundColor: BRAND_COLOR, borderColor: BRAND_LIGHT }}
+          >
+            <div className="animate-ticker">
+              {duplicateTicker.map((s, i) => (
+                <div key={`${s.id}-${i}`} className="inline-flex items-center mx-12 text-2xl text-white">
+                  <span className="text-yellow-300 mr-3" aria-hidden="true">⭐</span>
+                  <span className="font-bold mr-2">To: {s.to}</span>
+                  <span className="text-white/50 mr-2" aria-hidden="true">|</span>
+                  <span className="italic mr-3 text-white/80">From: {s.from}</span>
+                  <span className="font-light tracking-wide">— "{s.message}"</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ---------------------------------------------------------------------------
+    // App – edit mode UI with PDF upload, shout-out CRUD, and CSV import
     // ---------------------------------------------------------------------------
     function App() {
       const [mode, setMode] = useState('edit'); // 'edit' | 'present'
@@ -139,30 +410,25 @@ TOOL_OVERVIEW_END
       const [newFrom, setNewFrom] = useState('');
       const [newMessage, setNewMessage] = useState('');
 
-      // PDF.js state
       const [pdfjsLoaded, setPdfjsLoaded] = useState(false);
-      const [pdfDoc, setPdfDoc] = useState(null);
-      const [pageNum, setPageNum] = useState(1);
-      const [numPages, setNumPages] = useState(0);
-
-      const isRenderingRef = useRef(false);
-      const pendingPageRef = useRef(null); // page queued while a render is in progress
-      const canvasRef      = useRef(null);
       const csvInputRef    = useRef(null);
-      const pdfDocRef      = useRef(null); // mirrors pdfDoc for use in cleanup effects
+      const pdfFileUrlRef  = useRef(null); // tracks latest blob URL for unmount cleanup
 
-      // -------------------------------------------------------------------------
+      // Keep ref in sync so the unmount cleanup always revokes the latest URL
+      useEffect(() => { pdfFileUrlRef.current = pdfFile; }, [pdfFile]);
+
+      // -----------------------------------------------------------------------
       // Persist shout-outs to localStorage whenever they change
-      // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
       useEffect(() => {
         try {
           localStorage.setItem(LS_KEY, JSON.stringify(shoutOuts));
         } catch { /* storage quota exceeded – silently ignore */ }
       }, [shoutOuts]);
 
-      // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
       // Load PDF.js dynamically; clean up the injected <script> on unmount
-      // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
       useEffect(() => {
         if (window.pdfjsLib) {
           setPdfjsLoaded(true);
@@ -182,26 +448,18 @@ TOOL_OVERVIEW_END
         };
       }, []);
 
-      // -------------------------------------------------------------------------
-      // Keep pdfDocRef in sync with pdfDoc state so cleanup effects can call destroy()
-      // -------------------------------------------------------------------------
+      // Revoke blob URL on unmount
       useEffect(() => {
-        pdfDocRef.current = pdfDoc;
-      }, [pdfDoc]);
+        return () => { if (pdfFileUrlRef.current) URL.revokeObjectURL(pdfFileUrlRef.current); };
+      }, []);
 
-      // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
       // File upload
-      // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
       const processFile = (file) => {
         if (!file || file.type !== 'application/pdf') {
           setErrorMessage('Please upload a valid PDF file.');
           return;
-        }
-        // Destroy any existing PDF document before replacing
-        if (pdfDocRef.current) {
-          pdfDocRef.current.destroy();
-          pdfDocRef.current = null;
-          setPdfDoc(null);
         }
         // Revoke the previous blob URL to free memory
         if (pdfFile) URL.revokeObjectURL(pdfFile);
@@ -209,33 +467,22 @@ TOOL_OVERVIEW_END
         const fileUrl = URL.createObjectURL(file);
         setPdfFile(fileUrl);
         setPdfFileName(file.name);
-        setPageNum(1);
-        setNumPages(0);
         setErrorMessage('');
       };
 
       const handleFileUpload = (e) => processFile(e.target.files[0]);
 
-      const handleDragOver = (e) => { e.preventDefault(); setIsDragOver(true); };
+      const handleDragOver  = (e) => { e.preventDefault(); setIsDragOver(true); };
       const handleDragLeave = () => setIsDragOver(false);
-      const handleDrop = (e) => {
+      const handleDrop      = (e) => {
         e.preventDefault();
         setIsDragOver(false);
         processFile(e.dataTransfer.files[0]);
       };
 
-      // Revoke blob URL on unmount (catches any URL still held when component is removed)
-      useEffect(() => {
-        return () => {
-          if (pdfFile) URL.revokeObjectURL(pdfFile);
-        };
-        // We intentionally only run this on unmount – replacements are handled in handleFileUpload
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, []);
-
-      // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
       // Shout-out CRUD
-      // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
       const addShoutOut = (e) => {
         e.preventDefault();
         if (!newTo.trim() || !newMessage.trim()) return;
@@ -254,29 +501,9 @@ TOOL_OVERVIEW_END
         setShoutOuts(prev => prev.filter(s => s.id !== id));
       };
 
-      // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
       // CSV import
-      // -------------------------------------------------------------------------
-      const parseCsvRow = (row) => {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < row.length; i++) {
-          const char = row[i];
-          if (char === '"') {
-            if (inQuotes && row[i + 1] === '"') { current += '"'; i++; }
-            else { inQuotes = !inQuotes; }
-          } else if (char === ',' && !inQuotes) {
-            result.push(current.trim());
-            current = '';
-          } else {
-            current += char;
-          }
-        }
-        result.push(current.trim());
-        return result;
-      };
-
+      // -----------------------------------------------------------------------
       const handleCsvUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -317,9 +544,9 @@ TOOL_OVERVIEW_END
         reader.readAsText(file);
       };
 
-      // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
       // Presentation entry guard
-      // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
       const startPresentation = () => {
         if (!pdfFile) {
           setErrorMessage('Please upload your PDF slides first.');
@@ -332,262 +559,22 @@ TOOL_OVERVIEW_END
         setMode('present');
       };
 
-      // -------------------------------------------------------------------------
-      // PDF rendering
-      // -------------------------------------------------------------------------
-      const renderPage = useCallback(async (num, doc = pdfDoc) => {
-        if (!doc || !canvasRef.current) return;
-        if (isRenderingRef.current) {
-          // Queue the most-recently-requested page; rendered after the current one finishes
-          pendingPageRef.current = num;
-          return;
-        }
-        isRenderingRef.current = true;
-        try {
-          const page = await doc.getPage(num);
-          const canvas = canvasRef.current;
-          if (!canvas) return; // component may have unmounted between the await and here
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-          const viewport = page.getViewport({ scale: 1 });
-          // Reserve TICKER_HEIGHT_PX at the bottom for the ticker bar
-          const containerWidth  = window.innerWidth;
-          const containerHeight = window.innerHeight - TICKER_HEIGHT_PX;
-          const scale = Math.min(
-            (containerWidth  * SCALE_PADDING) / viewport.width,
-            (containerHeight * SCALE_PADDING) / viewport.height,
-          );
-          const scaledViewport = page.getViewport({ scale });
-          canvas.height = scaledViewport.height;
-          canvas.width  = scaledViewport.width;
-          await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
-        } catch (err) {
-          // Suppress "cancelled" errors that occur when navigating pages quickly
-          if (!String(err?.message).includes('cancelled')) {
-            console.error('Error rendering page:', err);
-          }
-        } finally {
-          isRenderingRef.current = false;
-          // Drain the pending queue
-          if (pendingPageRef.current !== null) {
-            const next = pendingPageRef.current;
-            pendingPageRef.current = null;
-            renderPage(next, doc);
-          }
-        }
-      }, [pdfDoc]);
-
-      // -------------------------------------------------------------------------
-      // Effects
-      // -------------------------------------------------------------------------
-
-      // Lock body scroll in presentation mode
-      useEffect(() => {
-        if (mode === 'present') {
-          document.documentElement.style.overflow = 'hidden';
-          document.body.style.overflow = 'hidden';
-        } else {
-          document.documentElement.style.overflow = '';
-          document.body.style.overflow = '';
-        }
-        return () => {
-          document.documentElement.style.overflow = '';
-          document.body.style.overflow = '';
-        };
-      }, [mode]);
-
-      // Destroy PDF document when returning to edit mode (frees PDF.js memory)
-      useEffect(() => {
-        if (mode === 'edit' && pdfDocRef.current) {
-          pdfDocRef.current.destroy();
-          pdfDocRef.current = null;
-          setPdfDoc(null);
-          setNumPages(0);
-          setPageNum(1);
-        }
-      }, [mode]);
-
-      // Load PDF document when entering presentation mode
-      useEffect(() => {
-        if (mode !== 'present' || !pdfFile || !pdfjsLoaded || pdfDoc) return;
-        const loadDoc = async () => {
-          try {
-            const doc = await window.pdfjsLib.getDocument(pdfFile).promise;
-            pdfDocRef.current = doc;
-            setPdfDoc(doc);
-            setNumPages(doc.numPages);
-            renderPage(1, doc);
-          } catch (err) {
-            console.error('Error loading PDF:', err);
-            setErrorMessage('Failed to load the PDF. Please try re-uploading.');
-            setMode('edit');
-          }
-        };
-        loadDoc();
-      }, [mode, pdfFile, pdfjsLoaded, pdfDoc, renderPage]);
-
-      // Re-render when the page number changes
-      useEffect(() => {
-        if (mode === 'present' && pdfDoc) renderPage(pageNum);
-      }, [pageNum, mode, pdfDoc, renderPage]);
-
-      // Debounced resize handler (150 ms) – prevents continuous re-renders while resizing
-      useEffect(() => {
-        let timer = null;
-        const handleResize = () => {
-          clearTimeout(timer);
-          timer = setTimeout(() => {
-            if (mode === 'present' && pdfDoc) renderPage(pageNum);
-          }, 150);
-        };
-        window.addEventListener('resize', handleResize);
-        return () => { window.removeEventListener('resize', handleResize); clearTimeout(timer); };
-      }, [mode, pdfDoc, pageNum, renderPage]);
-
-      // Keyboard navigation
-      useEffect(() => {
-        const handleKeyDown = (e) => {
-          if (mode !== 'present') return;
-          if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
-            setPageNum(prev => Math.min(prev + 1, numPages));
-          } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-            setPageNum(prev => Math.max(prev - 1, 1));
-          } else if (e.key === 'Escape') {
-            setMode('edit');
-          }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-      }, [mode, numPages]);
-
-      // Touch / swipe navigation
-      useEffect(() => {
-        let touchStartX = null;
-        const onTouchStart = (e) => { touchStartX = e.touches[0].clientX; };
-        const onTouchEnd = (e) => {
-          if (touchStartX === null || mode !== 'present') return;
-          const delta = touchStartX - e.changedTouches[0].clientX;
-          if (Math.abs(delta) > 50) {
-            setPageNum(prev =>
-              delta > 0 ? Math.min(prev + 1, numPages) : Math.max(prev - 1, 1)
-            );
-          }
-          touchStartX = null;
-        };
-        window.addEventListener('touchstart', onTouchStart, { passive: true });
-        window.addEventListener('touchend',   onTouchEnd,   { passive: true });
-        return () => {
-          window.removeEventListener('touchstart', onTouchStart);
-          window.removeEventListener('touchend',   onTouchEnd);
-        };
-      }, [mode, numPages]);
-
-      // -------------------------------------------------------------------------
-      // Memoised ticker data
-      // -------------------------------------------------------------------------
-      const tickerItems = useMemo(
-        () => shoutOuts.length > 0 ? shoutOuts : [DEFAULT_TICKER_ITEM],
-        [shoutOuts],
-      );
-      const duplicateTicker = useMemo(
-        () => [...tickerItems, ...tickerItems, ...tickerItems],
-        [tickerItems],
-      );
-      const tickerAnimDuration = useMemo(
-        () => Math.max(tickerItems.length * SECONDS_PER_ITEM, MIN_ANIM_DURATION),
-        [tickerItems],
-      );
-
-      // =========================================================================
-      // PRESENTATION VIEW
-      // =========================================================================
+      // =====================================================================
+      // Render
+      // =====================================================================
       if (mode === 'present') {
         return (
-          <div
-            className="flex flex-col h-screen w-screen bg-black overflow-hidden font-sans"
-            style={{ '--ticker-anim-duration': `${tickerAnimDuration}s` }}
-          >
-            {/* Top Control Bar – visible on hover */}
-            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center opacity-0 hover:opacity-100 transition-opacity z-50 bg-gradient-to-b from-black/80 to-transparent text-white">
-              <div className="flex items-center space-x-2">
-                <span className="font-bold">Town Hall</span>
-                <span className="text-gray-400 text-sm">| Presenting: {pdfFileName}</span>
-              </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm bg-black/50 px-3 py-1 rounded-full" aria-live="polite">
-                  Page {pageNum} of {numPages}
-                </span>
-                <button
-                  onClick={() => setMode('edit')}
-                  className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium transition-colors"
-                >
-                  <X className="w-4 h-4 mr-2" aria-hidden="true" /> Exit Presentation
-                </button>
-              </div>
-            </div>
-
-            {/* Navigation – Previous slide */}
-            <button
-              aria-label="Previous slide"
-              onClick={() => setPageNum(prev => Math.max(prev - 1, 1))}
-              className="absolute left-0 top-0 bottom-20 w-1/6 z-40 flex items-center justify-start pl-4 group bg-transparent border-0 cursor-pointer"
-            >
-              <div className="opacity-0 group-hover:opacity-100 p-2 bg-black/40 rounded-full text-white transition-opacity">
-                <ChevronLeft className="w-10 h-10" aria-hidden="true" />
-              </div>
-            </button>
-
-            {/* Navigation – Next slide */}
-            <button
-              aria-label="Next slide"
-              onClick={() => setPageNum(prev => Math.min(prev + 1, numPages))}
-              className="absolute right-0 top-0 bottom-20 w-1/6 z-40 flex items-center justify-end pr-4 group bg-transparent border-0 cursor-pointer"
-            >
-              <div className="opacity-0 group-hover:opacity-100 p-2 bg-black/40 rounded-full text-white transition-opacity">
-                <ChevronRight className="w-10 h-10" aria-hidden="true" />
-              </div>
-            </button>
-
-            {/* Main PDF Display */}
-            <div className="flex-1 flex items-center justify-center bg-[#1a1a1a] relative z-10 overflow-hidden">
-              {!pdfDoc && (
-                <div className="text-white animate-pulse">Loading presentation…</div>
-              )}
-              <canvas
-                ref={canvasRef}
-                className="shadow-2xl"
-                role="img"
-                aria-label={`Presentation slide ${pageNum} of ${numPages}`}
-              />
-            </div>
-
-            {/* Ticker Tape */}
-            <div
-              role="marquee"
-              aria-label="Staff shout-outs"
-              className="shrink-0 relative z-50 border-t-4 overflow-hidden flex items-center"
-              style={{ height: `${TICKER_HEIGHT_PX}px`, backgroundColor: BRAND_COLOR, borderColor: BRAND_LIGHT }}
-            >
-              <div className="animate-ticker">
-                {duplicateTicker.map((s, i) => (
-                  <div key={`${s.id}-${i}`} className="inline-flex items-center mx-12 text-2xl text-white">
-                    <span className="text-yellow-300 mr-3" aria-hidden="true">⭐</span>
-                    <span className="font-bold mr-2">To: {s.to}</span>
-                    <span className="text-white/50 mr-2" aria-hidden="true">|</span>
-                    <span className="italic mr-3 text-white/80">From: {s.from}</span>
-                    <span className="font-light tracking-wide">— "{s.message}"</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <PresentationView
+            pdfFileUrl={pdfFile}
+            pdfFileName={pdfFileName}
+            shoutOuts={shoutOuts}
+            pdfjsLoaded={pdfjsLoaded}
+            onExit={() => setMode('edit')}
+            onError={(msg) => { setErrorMessage(msg); setMode('edit'); }}
+          />
         );
       }
 
-      // =========================================================================
-      // EDIT MODE
-      // =========================================================================
       return (
         <div className="min-h-screen bg-gray-50 font-sans">
 
