@@ -69,7 +69,7 @@ TOOL_OVERVIEW_END
       const [pdfDoc, setPdfDoc] = useState(null);
       const [pageNum, setPageNum] = useState(1);
       const [numPages, setNumPages] = useState(0);
-      const [isRendering, setIsRendering] = useState(false);
+      const isRenderingRef = useRef(false);
       const canvasRef = useRef(null);
 
       // NHS Colors
@@ -134,9 +134,9 @@ TOOL_OVERVIEW_END
 
       // PDF Rendering Logic
       const renderPage = useCallback(async (num, doc = pdfDoc) => {
-        if (!doc || !canvasRef.current || isRendering) return;
+        if (!doc || !canvasRef.current || isRenderingRef.current) return;
         
-        setIsRendering(true);
+        isRenderingRef.current = true;
         try {
           const page = await doc.getPage(num);
           const canvas = canvasRef.current;
@@ -167,9 +167,25 @@ TOOL_OVERVIEW_END
         } catch (error) {
           console.error('Error rendering page:', error);
         } finally {
-          setIsRendering(false);
+          isRenderingRef.current = false;
         }
-      }, [pdfDoc, isRendering]);
+      }, [pdfDoc]);
+
+      // Lock body scroll in presentation mode so injected footer doesn't cause scrollbars
+      useEffect(() => {
+        const style = 'hidden';
+        if (mode === 'present') {
+          document.documentElement.style.overflow = style;
+          document.body.style.overflow = style;
+        } else {
+          document.documentElement.style.overflow = '';
+          document.body.style.overflow = '';
+        }
+        return () => {
+          document.documentElement.style.overflow = '';
+          document.body.style.overflow = '';
+        };
+      }, [mode]);
 
       // Load Document when entering Present mode
       useEffect(() => {
