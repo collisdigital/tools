@@ -51,9 +51,81 @@ TOOL_OVERVIEW_END
   <!-- Tailwind CSS (SRI not feasible for this dynamic CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Static ticker animation; duration is driven by --ticker-anim-duration CSS variable
-       set inline on the ticker container, so this block never needs to change. -->
-  <style>
+  <!-- Semantic design tokens. type="text/tailwindcss" tells the Tailwind CDN
+       to process this block with JIT so @apply can reference any utility.
+       All brand colours, component classes, and CSS-only hover rules live here,
+       keeping JSX className attributes short and intent-driven.
+
+       Colour convention: @apply handles layout/spacing/typography; all colour
+       values use var(--token) so the entire palette can be updated in one place.
+       Hover colours are expressed as plain CSS :hover rules for the same reason. -->
+  <style type="text/tailwindcss">
+    /* =========================================================================
+     * Design tokens
+     * ======================================================================= */
+    :root {
+      /* Brand */
+      --color-brand:              #005EB8;   /* primary brand blue */
+      --color-brand-dark:         #003087;   /* darker brand blue – headings, hover */
+      --color-brand-light:        #41B6E6;   /* light brand blue – ticker border */
+
+      /* Surfaces & borders */
+      --color-surface:            #ffffff;   /* card / input backgrounds */
+      --color-surface-subtle:     #f9fafb;   /* page, form panel, dropzone    [gray-50]  */
+      --color-surface-dark:       #1a1a1a;   /* presentation canvas */
+      --color-border:             #e5e7eb;   /* standard border               [gray-200] */
+      --color-border-muted:       #d1d5db;   /* form inputs, dropzone idle    [gray-300] */
+
+      /* Text scale – 4 levels, ascending contrast */
+      --color-text-primary:       #111827;   /* main content, recipient names [gray-900] */
+      --color-text-secondary:     #374151;   /* labels, subsection headings   [gray-700] */
+      --color-text-muted:         #6b7280;   /* body copy, prompts, "from"    [gray-500] */
+      --color-text-faint:         #9ca3af;   /* icons, decorative separators  [gray-400] */
+
+      /* Accent – interactive blue (info card, focus rings, upload states) */
+      --color-accent:             #3b82f6;   /* blue-500 – focus rings, icons */
+      --color-accent-hover:       #2563eb;   /* blue-600 – file badge icon    */
+      --color-accent-surface:     #eff6ff;   /* blue-50  – soft bg            */
+      --color-accent-border:      #bfdbfe;   /* blue-200 – borders on accent surfaces */
+      --color-accent-border-hover:#93c5fd;   /* blue-300 – dropzone hover border */
+      --color-accent-icon:        #60a5fa;   /* blue-400 – icons on light bg, dropzone active */
+      --color-accent-text:        #1e40af;   /* blue-800 – text on accent surface */
+      --color-accent-text-strong: #1e3a8a;   /* blue-900 – strong text on accent surface */
+
+      /* Success – green (start button, CSV import, toast) */
+      --color-success:            #22c55e;   /* green-500 – start btn base    */
+      --color-success-hover:      #16a34a;   /* green-600 – start btn hover, toast */
+      --color-success-text:       #15803d;   /* green-700 – text on light bg  */
+      --color-success-surface:    #f0fdf4;   /* green-50  – csv btn bg        */
+      --color-success-surface-hover: #dcfce7; /* green-100 – csv btn hover    */
+      --color-success-border:     #bbf7d0;   /* green-200 – csv btn border    */
+
+      /* Danger – red (errors, exit, delete) */
+      --color-danger:             #dc2626;   /* red-600   – alert, exit btn   */
+      --color-danger-hover:       #b91c1c;   /* red-700   – hover state       */
+      --color-danger-surface:     #fef2f2;   /* red-50    – delete hover bg   */
+      --color-danger-text:        #ef4444;   /* red-500   – delete hover text */
+
+      /* Highlight – yellow (shout-out badges, ticker star) */
+      --color-highlight-surface:  #fef9c3;   /* yellow-100 */
+      --color-highlight:          #fde047;   /* yellow-300 */
+      --color-highlight-text:     #ca8a04;   /* yellow-600 */
+
+      /* Overlay – dark panel (tooltip) */
+      --color-overlay:            #111827;   /* gray-900 – panel bg + arrow   */
+      --color-overlay-code:       #1f2937;   /* gray-800 – code block bg      */
+      --color-overlay-body:       #d1d5db;   /* gray-300 – body text on dark  */
+      --color-overlay-accent:     #86efac;   /* green-300 – heading on dark   */
+      --color-overlay-code-text:  #bbf7d0;   /* green-200 – code text on dark */
+
+      /* Disabled state */
+      --color-disabled-bg:        #9ca3af;   /* gray-400 */
+      --color-disabled-text:      #e5e7eb;   /* gray-200 */
+    }
+
+    /* =========================================================================
+     * Ticker animation – duration set at runtime via --ticker-anim-duration
+     * ======================================================================= */
     @keyframes ticker {
       0%   { transform: translateX(0); }
       100% { transform: translateX(-33.33%); }
@@ -64,6 +136,195 @@ TOOL_OVERVIEW_END
       animation: ticker var(--ticker-anim-duration, 20s) linear infinite;
     }
     .animate-ticker:hover { animation-play-state: paused; }
+
+    /* =========================================================================
+     * Tooltip – plain CSS hover replaces Tailwind's group/tooltip modifier
+     * ======================================================================= */
+    .tooltip-shell { @apply relative; }
+    .tooltip-popup {
+      @apply absolute right-0 top-full mt-2 w-72 text-white
+             text-xs rounded-lg p-3 shadow-xl pointer-events-none
+             opacity-0 transition-opacity duration-150;
+      background-color: var(--color-overlay);
+      z-index: 50;
+    }
+    .tooltip-shell:hover .tooltip-popup { opacity: 1; }
+    .tooltip-heading { @apply font-bold mb-1.5; color: var(--color-overlay-accent); }
+    .tooltip-body    { @apply mb-2;             color: var(--color-overlay-body); }
+    .tooltip-code    {
+      @apply block rounded p-2 leading-relaxed whitespace-pre;
+      background-color: var(--color-overlay-code);
+      color: var(--color-overlay-code-text);
+    }
+    .tooltip-arrow { @apply absolute -top-1.5 right-4 w-3 h-3 rotate-45; background-color: var(--color-overlay); }
+
+    /* =========================================================================
+     * Presentation view
+     * ======================================================================= */
+    .pres-wrapper { @apply flex flex-col h-screen w-screen bg-black overflow-hidden font-sans; }
+    .pres-header  {
+      @apply absolute top-0 left-0 right-0 p-4 flex justify-between items-center
+             opacity-0 hover:opacity-100 transition-opacity
+             bg-gradient-to-b from-black/80 to-transparent text-white;
+      z-index: 50;
+    }
+    .pres-title-group    { @apply flex items-center space-x-2; }
+    .pres-title          { @apply font-bold; }
+    .pres-filename       { @apply text-sm; color: var(--color-text-faint); }
+    .pres-controls-group { @apply flex items-center space-x-4; }
+    .pres-page-counter   { @apply text-sm bg-black/50 px-3 py-1 rounded-full; }
+    .btn-exit {
+      @apply flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors text-white;
+      background-color: var(--color-danger);
+    }
+    .btn-exit:hover { background-color: var(--color-danger-hover); }
+
+    /* Nav sidebars – chevron fades in on parent hover via plain CSS */
+    .pres-nav-prev {
+      @apply absolute left-0 top-0 bottom-20 w-1/6 flex items-center
+             justify-start pl-4 bg-transparent border-0 cursor-pointer;
+      z-index: 40;
+    }
+    .pres-nav-next {
+      @apply absolute right-0 top-0 bottom-20 w-1/6 flex items-center
+             justify-end pr-4 bg-transparent border-0 cursor-pointer;
+      z-index: 40;
+    }
+    .pres-nav-chevron { @apply opacity-0 p-2 bg-black/40 rounded-full text-white transition-opacity; }
+    .pres-nav-prev:hover .pres-nav-chevron,
+    .pres-nav-next:hover .pres-nav-chevron { opacity: 1; }
+
+    .pres-canvas-area  {
+      @apply flex-1 flex items-center justify-center relative overflow-hidden;
+      background-color: var(--color-surface-dark);
+      z-index: 10;
+    }
+    .pres-loading      { @apply text-white animate-pulse; }
+    .pres-slide-canvas { @apply shadow-2xl; }
+
+    /* Ticker tape */
+    .ticker-bar {
+      @apply shrink-0 relative border-t-4 overflow-hidden flex items-center;
+      height: 80px;
+      background-color: var(--color-brand);
+      border-color: var(--color-brand-light);
+      z-index: 50;
+    }
+    .ticker-item    { @apply inline-flex items-center mx-12 text-2xl text-white; }
+    .ticker-star    { @apply mr-3; color: var(--color-highlight); }
+    .ticker-to      { @apply font-bold mr-2; }
+    .ticker-divider { @apply text-white/50 mr-2; }
+    .ticker-from    { @apply italic mr-3 text-white/80; }
+    .ticker-message { @apply font-light tracking-wide; }
+
+    /* =========================================================================
+     * App edit view – layout & chrome
+     * ======================================================================= */
+    .app-root          { @apply min-h-screen font-sans; background-color: var(--color-surface-subtle); }
+    .page-header       {
+      @apply text-white shadow-md relative;
+      background-color: var(--color-brand);
+      z-index: 10;
+    }
+    .header-inner      { @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between; }
+    .page-title        { @apply text-2xl font-bold tracking-tight; }
+    .content-container { @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8; }
+    .main-grid         { @apply grid grid-cols-1 lg:grid-cols-3 gap-8; }
+    .col-left          { @apply lg:col-span-1 space-y-6; }
+    .col-right         { @apply lg:col-span-2; }
+
+    /* Alerts & notifications */
+    .alert-error {
+      @apply fixed top-0 left-0 right-0 flex items-center justify-between px-6 py-3 text-white shadow-lg;
+      background-color: var(--color-danger);
+      z-index: 100;
+    }
+    .alert-error-text { @apply text-sm font-medium; }
+    .btn-dismiss      { @apply ml-4 p-1 rounded transition-colors; }
+    .btn-dismiss:hover { background-color: var(--color-danger-hover); }
+    .toast-success {
+      @apply fixed top-4 right-4 px-4 py-3 text-white text-sm font-medium rounded-lg shadow-lg;
+      background-color: var(--color-success-hover);
+      z-index: 100;
+    }
+
+    /* Buttons */
+    .btn-start           { @apply flex items-center px-6 py-3 rounded-md font-semibold transition-all shadow-sm; }
+    .btn-start--active   { @apply text-white transform hover:scale-105; background-color: var(--color-success); }
+    .btn-start--active:hover { background-color: var(--color-success-hover); }
+    .btn-start--disabled { @apply cursor-not-allowed; background-color: var(--color-disabled-bg); color: var(--color-disabled-text); }
+    .btn-csv {
+      @apply flex items-center px-3 py-1.5 text-sm font-medium rounded-md transition-colors;
+      background-color: var(--color-success-surface);
+      border: 1px solid var(--color-success-border);
+      color: var(--color-success-text);
+    }
+    .btn-csv:hover { background-color: var(--color-success-surface-hover); }
+    .btn-primary {
+      @apply flex items-center text-white px-4 py-2 rounded-md transition-colors font-medium text-sm shadow-sm;
+      background-color: var(--color-brand);
+    }
+    .btn-primary:hover { background-color: var(--color-brand-dark); }
+    .btn-delete { @apply absolute right-4 top-4 p-1 rounded-md transition-colors; color: var(--color-text-faint); }
+    .btn-delete:hover  { color: var(--color-danger-text); background-color: var(--color-danger-surface); }
+
+    /* Cards */
+    .card          { @apply rounded-xl shadow-sm p-6; background-color: var(--color-surface); border: 1px solid var(--color-border); }
+    .card--stretch { @apply h-full flex flex-col; }
+    .card-title    { @apply text-lg font-bold flex items-center; color: var(--color-brand-dark); }
+    .card-title-icon  { @apply w-5 h-5 mr-2; color: var(--color-brand); }
+    .card-title-emoji { @apply text-2xl mr-2; }
+    .card-body-text   { @apply text-sm mb-4;  color: var(--color-text-muted); }
+
+    /* Info / help card */
+    .info-card       { @apply rounded-xl p-6; background-color: var(--color-accent-surface); border: 1px solid var(--color-accent-border); }
+    .info-card-title { @apply text-sm font-bold mb-2 flex items-center; color: var(--color-accent-text-strong); }
+    .info-card-list  { @apply text-sm space-y-2 list-disc pl-4; color: var(--color-accent-text); }
+    .info-card-list li::marker { color: var(--color-accent-icon); }
+    .kbd             { @apply px-1.5 py-0.5 bg-white rounded text-xs font-mono; border: 1px solid var(--color-accent-border); }
+
+    /* Upload zone */
+    .dropzone            { @apply flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors; }
+    .dropzone--idle      { background-color: var(--color-surface-subtle); border-color: var(--color-border-muted); }
+    .dropzone--idle:hover { background-color: var(--color-accent-surface); border-color: var(--color-accent-border-hover); }
+    .dropzone--active    { background-color: var(--color-accent-surface); border-color: var(--color-accent-icon); }
+    .upload-icon--idle   { @apply w-8 h-8 mb-2; color: var(--color-text-faint); }
+    .upload-icon--active { @apply w-8 h-8 mb-2; color: var(--color-accent-icon); }
+    .upload-prompt       { @apply text-sm font-medium; color: var(--color-text-muted); }
+    .file-badge          { @apply mt-4 p-3 rounded-md flex items-center text-sm; background-color: var(--color-accent-surface); border: 1px solid var(--color-accent-border); color: var(--color-accent-text); }
+    .file-badge-icon     { @apply w-4 h-4 mr-2 shrink-0; color: var(--color-accent-hover); }
+    .file-badge-name     { @apply truncate font-medium; }
+
+    /* Form */
+    .form-panel    { @apply p-5 rounded-lg mb-8; background-color: var(--color-surface-subtle); border: 1px solid var(--color-border); }
+    .form-header   { @apply flex items-center justify-between mb-4; }
+    .form-grid     { @apply grid grid-cols-1 md:grid-cols-2 gap-4 mb-4; }
+    .form-label    { @apply block text-sm font-medium mb-1; color: var(--color-text-secondary); }
+    .form-input, .form-textarea {
+      @apply w-full rounded-md p-2 outline-none;
+      border: 1px solid var(--color-border-muted);
+    }
+    .form-input:focus, .form-textarea:focus {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 25%, transparent);
+    }
+    .form-textarea { resize: none; }
+
+    /* Shout-out queue */
+    .subsection-label     { @apply text-sm font-bold uppercase tracking-wide; color: var(--color-text-secondary); }
+    .queue-header         { @apply flex justify-between items-center mb-3; }
+    .queue-scroll         { @apply flex-1 overflow-y-auto pr-2; max-height: 400px; }
+    .queue-empty          { @apply text-center py-10 border-2 border-dashed rounded-lg; color: var(--color-text-muted); border-color: var(--color-border); }
+    .queue-list           { @apply space-y-3; }
+    .queue-item           { @apply rounded-lg p-4 shadow-sm hover:shadow transition-shadow flex items-start relative; background-color: var(--color-surface); border: 1px solid var(--color-border); }
+    .queue-item-badge     { @apply rounded-full w-8 h-8 flex items-center justify-center font-bold mr-4 shrink-0 mt-1; background-color: var(--color-highlight-surface); color: var(--color-highlight-text); }
+    .queue-item-body      { @apply flex-1 pr-10; }
+    .queue-item-meta      { @apply text-sm mb-1; }
+    .queue-item-to        { @apply font-bold; color: var(--color-text-primary); }
+    .queue-item-separator { @apply mx-2; color: var(--color-text-faint); }
+    .queue-item-from      { @apply italic; color: var(--color-text-muted); }
+    .queue-item-message   { @apply text-sm; color: var(--color-text-primary); }
+    .queue-section        { @apply flex-1 flex flex-col; }
   </style>
 
   <!-- Import Map to allow modern module imports in the browser -->
@@ -92,9 +353,6 @@ TOOL_OVERVIEW_END
     // ---------------------------------------------------------------------------
     // Constants – defined outside the component so they are never recreated
     // ---------------------------------------------------------------------------
-    const BRAND_COLOR        = '#005EB8';
-    const BRAND_DARK         = '#003087';
-    const BRAND_LIGHT        = '#41B6E6';
     const TICKER_HEIGHT_PX   = 80;   // height of the ticker tape bar in px
     const SCALE_PADDING      = 0.98; // 2% padding so slides don't touch screen edges
     const SECONDS_PER_ITEM   = 8;    // animation speed: seconds per shout-out card
@@ -303,23 +561,20 @@ TOOL_OVERVIEW_END
       // -----------------------------------------------------------------------
       return (
         <div
-          className="flex flex-col h-screen w-screen bg-black overflow-hidden font-sans"
+          className="pres-wrapper"
           style={{ '--ticker-anim-duration': `${tickerAnimDuration}s` }}
         >
           {/* Top Control Bar – visible on hover */}
-          <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center opacity-0 hover:opacity-100 transition-opacity z-50 bg-gradient-to-b from-black/80 to-transparent text-white">
-            <div className="flex items-center space-x-2">
-              <span className="font-bold">Town Hall</span>
-              <span className="text-gray-400 text-sm">| Presenting: {pdfFileName}</span>
+          <div className="pres-header">
+            <div className="pres-title-group">
+              <span className="pres-title">Town Hall</span>
+              <span className="pres-filename">| Presenting: {pdfFileName}</span>
             </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm bg-black/50 px-3 py-1 rounded-full" aria-live="polite">
+            <div className="pres-controls-group">
+              <span className="pres-page-counter" aria-live="polite">
                 Page {pageNum} of {numPages}
               </span>
-              <button
-                onClick={onExit}
-                className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium transition-colors"
-              >
+              <button onClick={onExit} className="btn-exit">
                 <X className="w-4 h-4 mr-2" aria-hidden="true" /> Exit Presentation
               </button>
             </div>
@@ -329,9 +584,9 @@ TOOL_OVERVIEW_END
           <button
             aria-label="Previous slide"
             onClick={() => setPageNum(prev => Math.max(prev - 1, 1))}
-            className="absolute left-0 top-0 bottom-20 w-1/6 z-40 flex items-center justify-start pl-4 group bg-transparent border-0 cursor-pointer"
+            className="pres-nav-prev"
           >
-            <div className="opacity-0 group-hover:opacity-100 p-2 bg-black/40 rounded-full text-white transition-opacity">
+            <div className="pres-nav-chevron">
               <ChevronLeft className="w-10 h-10" aria-hidden="true" />
             </div>
           </button>
@@ -340,21 +595,21 @@ TOOL_OVERVIEW_END
           <button
             aria-label="Next slide"
             onClick={() => setPageNum(prev => Math.min(prev + 1, numPages))}
-            className="absolute right-0 top-0 bottom-20 w-1/6 z-40 flex items-center justify-end pr-4 group bg-transparent border-0 cursor-pointer"
+            className="pres-nav-next"
           >
-            <div className="opacity-0 group-hover:opacity-100 p-2 bg-black/40 rounded-full text-white transition-opacity">
+            <div className="pres-nav-chevron">
               <ChevronRight className="w-10 h-10" aria-hidden="true" />
             </div>
           </button>
 
           {/* Main PDF Display */}
-          <div className="flex-1 flex items-center justify-center bg-[#1a1a1a] relative z-10 overflow-hidden">
+          <div className="pres-canvas-area">
             {!pdfDoc && (
-              <div className="text-white animate-pulse">Loading presentation…</div>
+              <div className="pres-loading">Loading presentation…</div>
             )}
             <canvas
               ref={canvasRef}
-              className="shadow-2xl"
+              className="pres-slide-canvas"
               role="img"
               aria-label={`Presentation slide ${pageNum} of ${numPages}`}
             />
@@ -364,17 +619,16 @@ TOOL_OVERVIEW_END
           <div
             role="marquee"
             aria-label="Staff shout-outs"
-            className="shrink-0 relative z-50 border-t-4 overflow-hidden flex items-center"
-            style={{ height: `${TICKER_HEIGHT_PX}px`, backgroundColor: BRAND_COLOR, borderColor: BRAND_LIGHT }}
+            className="ticker-bar"
           >
             <div className="animate-ticker">
               {duplicateTicker.map((s, i) => (
-                <div key={`${s.id}-${i}`} className="inline-flex items-center mx-12 text-2xl text-white">
-                  <span className="text-yellow-300 mr-3" aria-hidden="true">⭐</span>
-                  <span className="font-bold mr-2">To: {s.to}</span>
-                  <span className="text-white/50 mr-2" aria-hidden="true">|</span>
-                  <span className="italic mr-3 text-white/80">From: {s.from}</span>
-                  <span className="font-light tracking-wide">— "{s.message}"</span>
+                <div key={`${s.id}-${i}`} className="ticker-item">
+                  <span className="ticker-star" aria-hidden="true">⭐</span>
+                  <span className="ticker-to">To: {s.to}</span>
+                  <span className="ticker-divider" aria-hidden="true">|</span>
+                  <span className="ticker-from">From: {s.from}</span>
+                  <span className="ticker-message">— "{s.message}"</span>
                 </div>
               ))}
             </div>
@@ -576,19 +830,16 @@ TOOL_OVERVIEW_END
       }
 
       return (
-        <div className="min-h-screen bg-gray-50 font-sans">
+        <div className="app-root">
 
           {/* Error Banner */}
           {errorMessage && (
-            <div
-              role="alert"
-              className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 py-3 bg-red-600 text-white shadow-lg"
-            >
-              <span className="text-sm font-medium">{errorMessage}</span>
+            <div role="alert" className="alert-error">
+              <span className="alert-error-text">{errorMessage}</span>
               <button
                 onClick={() => setErrorMessage('')}
                 aria-label="Dismiss error"
-                className="ml-4 p-1 rounded hover:bg-red-700 transition-colors"
+                className="btn-dismiss"
               >
                 <X className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -597,26 +848,19 @@ TOOL_OVERVIEW_END
 
           {/* Import Success Toast */}
           {importToast && (
-            <div
-              role="status"
-              aria-live="polite"
-              className="fixed top-4 right-4 z-[100] px-4 py-3 bg-green-600 text-white text-sm font-medium rounded-lg shadow-lg"
-            >
+            <div role="status" aria-live="polite" className="toast-success">
               ✓ {importToast}
             </div>
           )}
 
           {/* Header */}
-          <header className="text-white shadow-md relative z-10" style={{ backgroundColor: BRAND_COLOR }}>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
-              <h1 className="text-2xl font-bold tracking-tight">Town Hall Presenter</h1>
+          <header className="page-header">
+            <div className="header-inner">
+              <h1 className="page-title">Town Hall Presenter</h1>
               <button
                 onClick={startPresentation}
                 disabled={!pdfFile}
-                className={`flex items-center px-6 py-3 rounded-md font-semibold transition-all shadow-sm
-                  ${pdfFile
-                    ? 'bg-green-500 hover:bg-green-600 text-white transform hover:scale-105'
-                    : 'bg-gray-400 text-gray-200 cursor-not-allowed'}`}
+                className={`btn-start ${pdfFile ? 'btn-start--active' : 'btn-start--disabled'}`}
               >
                 <MonitorPlay className="w-5 h-5 mr-2" aria-hidden="true" />
                 Start Presentation
@@ -624,32 +868,28 @@ TOOL_OVERVIEW_END
             </div>
           </header>
 
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <main className="content-container">
+            <div className="main-grid">
 
               {/* Left Column: PDF Upload */}
-              <div className="lg:col-span-1 space-y-6">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  <h2 className="text-lg font-bold mb-4 flex items-center" style={{ color: BRAND_DARK }}>
-                    <FileText className="w-5 h-5 mr-2" style={{ color: BRAND_COLOR }} aria-hidden="true" />
+              <div className="col-left">
+                <div className="card">
+                  <h2 className="card-title mb-4">
+                    <FileText className="card-title-icon" aria-hidden="true" />
                     1. Upload Presentation Slides
                   </h2>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <p className="card-body-text">
                     Upload the main slide deck (PDF format only) for the Town Hall meeting.
                   </p>
                   <label
                     htmlFor="file-upload"
-                    className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                      isDragOver
-                        ? 'bg-blue-50 border-blue-400'
-                        : 'border-gray-300 bg-gray-50 hover:bg-blue-50 hover:border-blue-300'
-                    }`}
+                    className={`dropzone ${isDragOver ? 'dropzone--active' : 'dropzone--idle'}`}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                   >
-                    <Upload className={`w-8 h-8 mb-2 ${isDragOver ? 'text-blue-400' : 'text-gray-400'}`} aria-hidden="true" />
-                    <span className="text-sm text-gray-500 font-medium">Click or drag a PDF here</span>
+                    <Upload className={isDragOver ? 'upload-icon--active' : 'upload-icon--idle'} aria-hidden="true" />
+                    <span className="upload-prompt">Click or drag a PDF here</span>
                     <input
                       id="file-upload"
                       type="file"
@@ -659,21 +899,21 @@ TOOL_OVERVIEW_END
                     />
                   </label>
                   {pdfFileName && (
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md flex items-center text-sm text-blue-800">
-                      <FileText className="w-4 h-4 mr-2 text-blue-600 shrink-0" aria-hidden="true" />
-                      <span className="truncate font-medium">{pdfFileName}</span>
+                    <div className="file-badge">
+                      <FileText className="file-badge-icon" aria-hidden="true" />
+                      <span className="file-badge-name">{pdfFileName}</span>
                     </div>
                   )}
                 </div>
 
-                <div className="bg-blue-50 rounded-xl border border-blue-100 p-6">
-                  <h3 className="text-sm font-bold text-blue-900 mb-2 flex items-center">
+                <div className="info-card">
+                  <h3 className="info-card-title">
                     <Info className="w-4 h-4 mr-1" aria-hidden="true" /> Presenter Controls
                   </h3>
-                  <ul className="text-sm text-blue-800 space-y-2 list-disc pl-4 marker:text-blue-400">
-                    <li>Press <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">Space</kbd> or <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">→</kbd> for Next Page</li>
-                    <li>Press <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">←</kbd> for Previous Page</li>
-                    <li>Press <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">Esc</kbd> to exit presentation</li>
+                  <ul className="info-card-list">
+                    <li>Press <kbd className="kbd">Space</kbd> or <kbd className="kbd">→</kbd> for Next Page</li>
+                    <li>Press <kbd className="kbd">←</kbd> for Previous Page</li>
+                    <li>Press <kbd className="kbd">Esc</kbd> to exit presentation</li>
                     <li>Swipe left or right on touch screens to navigate.</li>
                     <li>Hover at the top of the screen to view slide number and exit button.</li>
                   </ul>
@@ -681,17 +921,17 @@ TOOL_OVERVIEW_END
               </div>
 
               {/* Right Column: Shout-outs */}
-              <div className="lg:col-span-2">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 h-full flex flex-col">
-                  <h2 className="text-lg font-bold mb-6 flex items-center" style={{ color: BRAND_DARK }}>
-                    <span className="text-2xl mr-2" aria-hidden="true">⭐</span>
+              <div className="col-right">
+                <div className="card card--stretch">
+                  <h2 className="card-title mb-6">
+                    <span className="card-title-emoji" aria-hidden="true">⭐</span>
                     2. Manage Shout-outs
                   </h2>
 
                   {/* Add Form */}
-                  <form onSubmit={addShoutOut} className="bg-gray-50 p-5 rounded-lg border border-gray-200 mb-8">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Add New Shout-out</h3>
+                  <form onSubmit={addShoutOut} className="form-panel">
+                    <div className="form-header">
+                      <h3 className="subsection-label">Add New Shout-out</h3>
                       <div>
                         {/* Hidden file input; triggered by the visible button below */}
                         <input
@@ -709,29 +949,29 @@ TOOL_OVERVIEW_END
                           A header row is optional and will be skipped automatically.
                           Compatible with Excel exports.
                         </p>
-                        <div className="relative group/tooltip">
+                        <div className="tooltip-shell">
                           <button
                             type="button"
                             onClick={() => csvInputRef.current && csvInputRef.current.click()}
                             aria-describedby="csv-format-hint"
-                            className="flex items-center px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 transition-colors"
+                            className="btn-csv"
                           >
                             <FileSpreadsheet className="w-4 h-4 mr-1.5" aria-hidden="true" />
                             Import CSV
                           </button>
-                          <div className="absolute right-0 top-full mt-2 w-72 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl z-50 pointer-events-none opacity-0 group-hover/tooltip:opacity-100 transition-opacity duration-150" aria-hidden="true">
-                            <p className="font-bold mb-1.5 text-green-300">Expected CSV format</p>
-                            <p className="mb-2 text-gray-300">Three columns, compatible with Excel exports. A header row is optional and will be skipped automatically.</p>
-                            <code className="block bg-gray-800 rounded p-2 leading-relaxed text-green-200 whitespace-pre">{'to,from,message\nTeam Name,Sender,Well done!'}</code>
-                            <div className="absolute -top-1.5 right-4 w-3 h-3 bg-gray-900 rotate-45" aria-hidden="true" />
+                          <div className="tooltip-popup" aria-hidden="true">
+                            <p className="tooltip-heading">Expected CSV format</p>
+                            <p className="tooltip-body">Three columns, compatible with Excel exports. A header row is optional and will be skipped automatically.</p>
+                            <code className="tooltip-code">{'to,from,message\nTeam Name,Sender,Well done!'}</code>
+                            <div className="tooltip-arrow" aria-hidden="true" />
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="form-grid">
                       <div>
-                        <label htmlFor="shoutout-to" className="block text-sm font-medium text-gray-700 mb-1">
+                        <label htmlFor="shoutout-to" className="form-label">
                           To (Recipient / Team)
                         </label>
                         <input
@@ -740,12 +980,12 @@ TOOL_OVERVIEW_END
                           value={newTo}
                           onChange={e => setNewTo(e.target.value)}
                           placeholder="e.g. Front-end Dev Team"
-                          className="w-full rounded-md border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                          className="form-input"
                           required
                         />
                       </div>
                       <div>
-                        <label htmlFor="shoutout-from" className="block text-sm font-medium text-gray-700 mb-1">
+                        <label htmlFor="shoutout-from" className="form-label">
                           From (Sender)
                         </label>
                         <input
@@ -754,13 +994,13 @@ TOOL_OVERVIEW_END
                           value={newFrom}
                           onChange={e => setNewFrom(e.target.value)}
                           placeholder="e.g. John Smith"
-                          className="w-full rounded-md border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                          className="form-input"
                         />
                       </div>
                     </div>
 
                     <div className="mb-4">
-                      <label htmlFor="shoutout-message" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="shoutout-message" className="form-label">
                         Message
                       </label>
                       <textarea
@@ -769,51 +1009,47 @@ TOOL_OVERVIEW_END
                         onChange={e => setNewMessage(e.target.value)}
                         placeholder="Briefly describe why you are shouting them out…"
                         rows="2"
-                        className="w-full rounded-md border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                        className="form-textarea"
                         required
                       />
                     </div>
 
-                    <button
-                      type="submit"
-                      className="flex items-center text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm"
-                      style={{ backgroundColor: BRAND_COLOR }}
-                    >
+                    <button type="submit" className="btn-primary">
                       <Plus className="w-4 h-4 mr-1" aria-hidden="true" /> Add to Ticker Tape
                     </button>
                   </form>
 
                   {/* Shout-outs List */}
-                  <div className="flex-1 flex flex-col">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                  <div className="queue-section">
+                    <div className="queue-header">
+                      <h3 className="subsection-label">
                         Current Queue ({shoutOuts.length})
                       </h3>
                     </div>
-                    <div className="flex-1 overflow-y-auto pr-2" style={{ maxHeight: '400px' }}>
+                    <div className="queue-scroll">
                       {shoutOuts.length === 0 ? (
-                        <div className="text-center py-10 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+                        <div className="queue-empty">
                           No shout-outs yet. Add one above or import a CSV file.
                         </div>
                       ) : (
-                        <ul className="space-y-3" aria-label="Shout-out queue">
+                        <ul className="queue-list" aria-label="Shout-out queue">
                           {shoutOuts.map((shout, index) => (
-                            <li key={shout.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow transition-shadow flex items-start relative">
-                              <div className="bg-yellow-100 text-yellow-600 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-4 shrink-0 mt-1" aria-hidden="true">
+                            <li key={shout.id} className="queue-item">
+                              <div className="queue-item-badge" aria-hidden="true">
                                 {index + 1}
                               </div>
-                              <div className="flex-1 pr-10">
-                                <p className="text-sm mb-1">
-                                  <span className="font-bold text-gray-900">{shout.to}</span>
-                                  <span className="text-gray-400 mx-2" aria-hidden="true">|</span>
-                                  <span className="text-gray-600 italic">From: {shout.from}</span>
+                              <div className="queue-item-body">
+                                <p className="queue-item-meta">
+                                  <span className="queue-item-to">{shout.to}</span>
+                                  <span className="queue-item-separator" aria-hidden="true">|</span>
+                                  <span className="queue-item-from">From: {shout.from}</span>
                                 </p>
-                                <p className="text-gray-800 text-sm">{shout.message}</p>
+                                <p className="queue-item-message">{shout.message}</p>
                               </div>
                               <button
                                 onClick={() => deleteShoutOut(shout.id)}
                                 aria-label={`Remove shout-out to ${shout.to}`}
-                                className="absolute right-4 top-4 text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors"
+                                className="btn-delete"
                               >
                                 <Trash2 className="w-5 h-5" aria-hidden="true" />
                               </button>
