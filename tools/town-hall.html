@@ -1,8 +1,8 @@
 <!--
 TOOL_OVERVIEW_START
 {
-  "name": "DHCW Town Hall Presenter",
-  "description": "A presentation tool for NHS Wales/DHCW Town Hall meetings that combines a PDF slide viewer with a live, scrolling ticker-tape for staff shout-outs.",
+  "name": "Town Hall Presenter",
+  "description": "A presentation tool for Town Hall meetings that combines a PDF slide viewer with a live, scrolling ticker-tape for staff shout-outs.",
   "functionality": {
     "pdf_presentation": "Upload, view, and navigate PDF slides in a full-screen presentation mode.",
     "shoutout_management": "Edit mode to add, manage, and queue team shout-outs for the scrolling ticker tape.",
@@ -23,7 +23,7 @@ TOOL_OVERVIEW_END
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DHCW Town Hall Presenter</title>
+  <title>Town Hall Presenter</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -74,7 +74,7 @@ TOOL_OVERVIEW_END
       const canvasRef = useRef(null);
       const csvInputRef = useRef(null);
 
-      // NHS Colors
+      // Brand Colors
       const nhsBlue = '#005EB8';
       const nhsDarkBlue = '#003087';
       const nhsLightBlue = '#41B6E6';
@@ -308,7 +308,7 @@ TOOL_OVERVIEW_END
       }, [mode, pageNum, numPages]);
 
       // Ticker content generation (duplicated for seamless loop)
-      const tickerItems = shoutOuts.length > 0 ? shoutOuts : [{ id: 0, to: 'The Team', from: 'DHCW', message: 'Welcome to the Town Hall!' }];
+      const tickerItems = shoutOuts.length > 0 ? shoutOuts : [{ id: 0, to: 'The Team', from: 'Management', message: 'Welcome to the Town Hall!' }];
       const duplicateTicker = [...tickerItems, ...tickerItems, ...tickerItems];
 
       if (mode === 'present') {
@@ -333,7 +333,7 @@ TOOL_OVERVIEW_END
             {/* Top Control Bar (Visible on hover) */}
             <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center opacity-0 hover:opacity-100 transition-opacity z-50 bg-gradient-to-b from-black/80 to-transparent text-white">
               <div className="flex items-center space-x-2">
-                <span className="font-bold">DHCW Town Hall</span>
+                <span className="font-bold">Town Hall</span>
                 <span className="text-gray-400 text-sm">| Presenting: {pdfFileName}</span>
               </div>
               <div className="flex items-center space-x-4">
@@ -405,7 +405,6 @@ TOOL_OVERVIEW_END
               <div className="flex items-center">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight">Town Hall Presenter</h1>
-                  <p className="text-sm text-blue-100">Digital Health and Care Wales (DHCW)</p>
                 </div>
               </div>
               <button
