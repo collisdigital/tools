@@ -23,11 +23,49 @@ TOOL_OVERVIEW_END
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!--
+    CSP: restricts resource loading to the known CDN origins used by this tool.
+    Notes:
+      - 'unsafe-inline' is required for Tailwind's injected styles and React inline styles.
+      - 'unsafe-eval' is required by Babel standalone for JSX transpilation.
+      - worker-src blob: is required for the PDF.js web worker.
+      - SRI for cdn.tailwindcss.com is not feasible (dynamic CDN; content varies per request).
+      - SRI for esm.sh import-map entries is not supported by the importmap spec yet.
+      - SRI for the dynamically injected PDF.js <script> is applied via script.integrity in JS.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src  'self' 'unsafe-inline' 'unsafe-eval'
+                https://cdn.tailwindcss.com
+                https://unpkg.com
+                https://esm.sh
+                https://cdnjs.cloudflare.com;
+    worker-src  blob:;
+    style-src   'self' 'unsafe-inline' https://cdn.tailwindcss.com;
+    connect-src 'self' https://esm.sh blob:;
+    img-src     'self' blob: data:;
+    font-src    'self' data:;
+  ">
   <title>Town Hall Presenter</title>
-  
-  <!-- Tailwind CSS -->
+
+  <!-- Tailwind CSS (SRI not feasible for this dynamic CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
+  <!-- Static ticker animation; duration is driven by --ticker-anim-duration CSS variable
+       set inline on the ticker container, so this block never needs to change. -->
+  <style>
+    @keyframes ticker {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-33.33%); }
+    }
+    .animate-ticker {
+      display: inline-flex;
+      white-space: nowrap;
+      animation: ticker var(--ticker-anim-duration, 20s) linear infinite;
+    }
+    .animate-ticker:hover { animation-play-state: paused; }
+  </style>
+
   <!-- Import Map to allow modern module imports in the browser -->
   <script type="importmap">
     {
@@ -38,7 +76,7 @@ TOOL_OVERVIEW_END
       }
     }
   </script>
-  
+
   <!-- Babel for in-browser JSX transpilation -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
@@ -47,75 +85,155 @@ TOOL_OVERVIEW_END
 
   <!-- The application code, defined as a Babel-processed module -->
   <script type="text/babel" data-type="module">
-    import React, { useState, useEffect, useRef, useCallback } from 'react';
+    import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Upload, Play, Trash2, Plus, MonitorPlay, X, FileText, ChevronLeft, ChevronRight, Info, FileSpreadsheet } from 'lucide-react';
+    import { Upload, Trash2, Plus, MonitorPlay, X, FileText, ChevronLeft, ChevronRight, Info, FileSpreadsheet } from 'lucide-react';
 
+    // ---------------------------------------------------------------------------
+    // Constants – defined outside the component so they are never recreated
+    // ---------------------------------------------------------------------------
+    const BRAND_COLOR        = '#005EB8';
+    const BRAND_DARK         = '#003087';
+    const BRAND_LIGHT        = '#41B6E6';
+    const TICKER_HEIGHT_PX   = 80;   // height of the ticker tape bar in px
+    const SCALE_PADDING      = 0.98; // 2% padding so slides don't touch screen edges
+    const SECONDS_PER_ITEM   = 8;    // animation speed: seconds per shout-out card
+    const MIN_ANIM_DURATION  = 20;   // minimum total ticker duration in seconds
+    const LS_KEY             = 'townhall-shoutouts';
+    const DEFAULT_TICKER_ITEM = Object.freeze({
+      id: 'default',
+      to: 'The Team',
+      from: 'Management',
+      message: 'Welcome to the Town Hall!',
+    });
+    const PDFJS_VERSION  = '3.11.174';
+    const PDFJS_BASE     = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
+    // SRI hashes for the PDF.js CDN files (sha384)
+    const PDFJS_MAIN_INTEGRITY   = 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
+    const PDFJS_WORKER_INTEGRITY = 'sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2';
+
+    // ---------------------------------------------------------------------------
+    // App
+    // ---------------------------------------------------------------------------
     function App() {
-      const [mode, setMode] = useState('edit'); // 'edit' or 'present'
-      const [shoutOuts, setShoutOuts] = useState([
-        { id: 1, to: 'The Infrastructure Team', from: 'Jane (Product)', message: 'Amazing work on the cloud migration over the weekend!' },
-        { id: 2, to: 'David Davies', from: 'Sarah Smith', message: 'Thanks for stepping in to help with the Q3 reporting.' }
-      ]);
-      const [pdfFile, setPdfFile] = useState(null);
+      const [mode, setMode] = useState('edit'); // 'edit' | 'present'
+
+      // Restore shout-outs from localStorage on first render
+      const [shoutOuts, setShoutOuts] = useState(() => {
+        try {
+          const saved = localStorage.getItem(LS_KEY);
+          return saved ? JSON.parse(saved) : [];
+        } catch {
+          return [];
+        }
+      });
+
+      const [pdfFile, setPdfFile] = useState(null);      // blob URL string
       const [pdfFileName, setPdfFileName] = useState('');
-      
-      // Form State
+      const [errorMessage, setErrorMessage] = useState('');
+      const [importToast, setImportToast] = useState('');
+
+      // Form state
       const [newTo, setNewTo] = useState('');
       const [newFrom, setNewFrom] = useState('');
       const [newMessage, setNewMessage] = useState('');
 
-      // PDF.js State
+      // PDF.js state
       const [pdfjsLoaded, setPdfjsLoaded] = useState(false);
       const [pdfDoc, setPdfDoc] = useState(null);
       const [pageNum, setPageNum] = useState(1);
       const [numPages, setNumPages] = useState(0);
+
       const isRenderingRef = useRef(false);
-      const canvasRef = useRef(null);
-      const csvInputRef = useRef(null);
+      const pendingPageRef = useRef(null); // page queued while a render is in progress
+      const canvasRef      = useRef(null);
+      const csvInputRef    = useRef(null);
+      const pdfDocRef      = useRef(null); // mirrors pdfDoc for use in cleanup effects
 
-      // Brand Colors
-      const nhsBlue = '#005EB8';
-      const nhsDarkBlue = '#003087';
-      const nhsLightBlue = '#41B6E6';
+      // -------------------------------------------------------------------------
+      // Persist shout-outs to localStorage whenever they change
+      // -------------------------------------------------------------------------
+      useEffect(() => {
+        try {
+          localStorage.setItem(LS_KEY, JSON.stringify(shoutOuts));
+        } catch { /* storage quota exceeded – silently ignore */ }
+      }, [shoutOuts]);
 
-      // Load PDF.js dynamically
+      // -------------------------------------------------------------------------
+      // Load PDF.js dynamically; clean up the injected <script> on unmount
+      // -------------------------------------------------------------------------
       useEffect(() => {
         if (window.pdfjsLib) {
           setPdfjsLoaded(true);
           return;
         }
         const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        script.src = `${PDFJS_BASE}/pdf.min.js`;
+        script.integrity = PDFJS_MAIN_INTEGRITY;
+        script.crossOrigin = 'anonymous';
         script.onload = () => {
-          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_BASE}/pdf.worker.min.js`;
           setPdfjsLoaded(true);
         };
         document.body.appendChild(script);
+        return () => {
+          if (script.parentNode) script.parentNode.removeChild(script);
+        };
       }, []);
 
+      // -------------------------------------------------------------------------
+      // Keep pdfDocRef in sync with pdfDoc state so cleanup effects can call destroy()
+      // -------------------------------------------------------------------------
+      useEffect(() => {
+        pdfDocRef.current = pdfDoc;
+      }, [pdfDoc]);
+
+      // -------------------------------------------------------------------------
+      // File upload
+      // -------------------------------------------------------------------------
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
-        if (file && file.type === 'application/pdf') {
-          const fileUrl = URL.createObjectURL(file);
-          setPdfFile(fileUrl);
-          setPdfFileName(file.name);
-          setPdfDoc(null);
-          setPageNum(1);
-          setNumPages(0);
-        } else {
-          alert('Please upload a valid PDF file.');
+        if (!file || file.type !== 'application/pdf') {
+          setErrorMessage('Please upload a valid PDF file.');
+          return;
         }
+        // Destroy any existing PDF document before replacing
+        if (pdfDocRef.current) {
+          pdfDocRef.current.destroy();
+          pdfDocRef.current = null;
+          setPdfDoc(null);
+        }
+        // Revoke the previous blob URL to free memory
+        if (pdfFile) URL.revokeObjectURL(pdfFile);
+
+        const fileUrl = URL.createObjectURL(file);
+        setPdfFile(fileUrl);
+        setPdfFileName(file.name);
+        setPageNum(1);
+        setNumPages(0);
+        setErrorMessage('');
       };
 
+      // Revoke blob URL on unmount (catches any URL still held when component is removed)
+      useEffect(() => {
+        return () => {
+          if (pdfFile) URL.revokeObjectURL(pdfFile);
+        };
+        // We intentionally only run this on unmount – replacements are handled in handleFileUpload
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+
+      // -------------------------------------------------------------------------
+      // Shout-out CRUD
+      // -------------------------------------------------------------------------
       const addShoutOut = (e) => {
         e.preventDefault();
         if (!newTo.trim() || !newMessage.trim()) return;
-        setShoutOuts([...shoutOuts, {
-          id: Date.now(),
-          to: newTo,
-          from: newFrom || 'Anonymous',
-          message: newMessage
+        setShoutOuts(prev => [...prev, {
+          id: crypto.randomUUID(),
+          to: newTo.trim(),
+          from: newFrom.trim() || 'Anonymous',
+          message: newMessage.trim(),
         }]);
         setNewTo('');
         setNewFrom('');
@@ -123,10 +241,12 @@ TOOL_OVERVIEW_END
       };
 
       const deleteShoutOut = (id) => {
-        setShoutOuts(shoutOuts.filter(s => s.id !== id));
+        setShoutOuts(prev => prev.filter(s => s.id !== id));
       };
 
-      // Parse a single CSV row handling quoted fields and Excel exports
+      // -------------------------------------------------------------------------
+      // CSV import
+      // -------------------------------------------------------------------------
       const parseCsvRow = (row) => {
         const result = [];
         let current = '';
@@ -134,12 +254,8 @@ TOOL_OVERVIEW_END
         for (let i = 0; i < row.length; i++) {
           const char = row[i];
           if (char === '"') {
-            if (inQuotes && row[i + 1] === '"') {
-              current += '"';
-              i++;
-            } else {
-              inQuotes = !inQuotes;
-            }
+            if (inQuotes && row[i + 1] === '"') { current += '"'; i++; }
+            else { inQuotes = !inQuotes; }
           } else if (char === ',' && !inQuotes) {
             result.push(current.trim());
             current = '';
@@ -154,16 +270,14 @@ TOOL_OVERVIEW_END
       const handleCsvUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        // Reset so the same file can be re-imported if needed
-        e.target.value = '';
+        e.target.value = ''; // allow re-importing the same file
         const reader = new FileReader();
         reader.onload = (evt) => {
           const text = evt.target.result;
-          // Normalise line endings (Excel on Windows uses CRLF)
-          const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim() !== '');
+          // Normalise all line-ending variants (CRLF, CR, LF) in a single pass
+          const lines = text.replace(/\r\n|\r|\n/g, '\n').split('\n').filter(l => l.trim() !== '');
           if (lines.length === 0) return;
 
-          // Detect and skip a header row
           const firstRow = parseCsvRow(lines[0]);
           const isHeader = firstRow.length >= 3 &&
             firstRow[0].toLowerCase() === 'to' &&
@@ -175,74 +289,94 @@ TOOL_OVERVIEW_END
             .map(line => parseCsvRow(line))
             .filter(cols => cols.length >= 3 && cols[0])
             .map(cols => ({
-              id: Date.now() + Math.random(),
+              id: crypto.randomUUID(),
               to: cols[0],
               from: cols[1] || 'Anonymous',
-              message: cols[2]
+              message: cols[2],
             }));
 
           if (imported.length === 0) {
-            alert('No valid rows found. Ensure the CSV has columns: to, from, message');
+            setErrorMessage('No valid rows found. Ensure the CSV has columns: to, from, message');
             return;
           }
           setShoutOuts(prev => [...prev, ...imported]);
+          const label = `Imported ${imported.length} shout-out${imported.length !== 1 ? 's' : ''}`;
+          setImportToast(label);
+          setTimeout(() => setImportToast(''), 4000);
         };
         reader.readAsText(file);
       };
 
-      const startPresentation = async () => {
+      // -------------------------------------------------------------------------
+      // Presentation entry guard
+      // -------------------------------------------------------------------------
+      const startPresentation = () => {
         if (!pdfFile) {
-          alert("Please upload your PDF slides first.");
+          setErrorMessage('Please upload your PDF slides first.');
+          return;
+        }
+        if (!pdfjsLoaded) {
+          setErrorMessage('PDF library is still loading — please wait a moment.');
           return;
         }
         setMode('present');
       };
 
-      // PDF Rendering Logic
+      // -------------------------------------------------------------------------
+      // PDF rendering
+      // -------------------------------------------------------------------------
       const renderPage = useCallback(async (num, doc = pdfDoc) => {
-        if (!doc || !canvasRef.current || isRenderingRef.current) return;
-        
+        if (!doc || !canvasRef.current) return;
+        if (isRenderingRef.current) {
+          // Queue the most-recently-requested page; rendered after the current one finishes
+          pendingPageRef.current = num;
+          return;
+        }
         isRenderingRef.current = true;
         try {
           const page = await doc.getPage(num);
           const canvas = canvasRef.current;
+          if (!canvas) return; // component may have unmounted between the await and here
           const ctx = canvas.getContext('2d');
-
-          // Clear previous canvas
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
           const viewport = page.getViewport({ scale: 1 });
-          
-          // Calculate scale to fit screen - reserving 80px height for the ticker at bottom
-          const containerWidth = window.innerWidth;
-          const containerHeight = window.innerHeight - 80;
-          
-          // Add slight padding to the scale calculation (0.98) so it doesn't touch edges absolutely
-          const scale = Math.min((containerWidth * 0.98) / viewport.width, (containerHeight * 0.98) / viewport.height);
+          // Reserve TICKER_HEIGHT_PX at the bottom for the ticker bar
+          const containerWidth  = window.innerWidth;
+          const containerHeight = window.innerHeight - TICKER_HEIGHT_PX;
+          const scale = Math.min(
+            (containerWidth  * SCALE_PADDING) / viewport.width,
+            (containerHeight * SCALE_PADDING) / viewport.height,
+          );
           const scaledViewport = page.getViewport({ scale });
-
           canvas.height = scaledViewport.height;
-          canvas.width = scaledViewport.width;
-
-          const renderContext = {
-            canvasContext: ctx,
-            viewport: scaledViewport,
-          };
-
-          await page.render(renderContext).promise;
-        } catch (error) {
-          console.error('Error rendering page:', error);
+          canvas.width  = scaledViewport.width;
+          await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+        } catch (err) {
+          // Suppress "cancelled" errors that occur when navigating pages quickly
+          if (!String(err?.message).includes('cancelled')) {
+            console.error('Error rendering page:', err);
+          }
         } finally {
           isRenderingRef.current = false;
+          // Drain the pending queue
+          if (pendingPageRef.current !== null) {
+            const next = pendingPageRef.current;
+            pendingPageRef.current = null;
+            renderPage(next, doc);
+          }
         }
       }, [pdfDoc]);
 
-      // Lock body scroll in presentation mode so injected footer doesn't cause scrollbars
+      // -------------------------------------------------------------------------
+      // Effects
+      // -------------------------------------------------------------------------
+
+      // Lock body scroll in presentation mode
       useEffect(() => {
-        const style = 'hidden';
         if (mode === 'present') {
-          document.documentElement.style.overflow = style;
-          document.body.style.overflow = style;
+          document.documentElement.style.overflow = 'hidden';
+          document.body.style.overflow = 'hidden';
         } else {
           document.documentElement.style.overflow = '';
           document.body.style.overflow = '';
@@ -253,140 +387,185 @@ TOOL_OVERVIEW_END
         };
       }, [mode]);
 
-      // Load Document when entering Present mode
+      // Destroy PDF document when returning to edit mode (frees PDF.js memory)
       useEffect(() => {
-        if (mode === 'present' && pdfFile && pdfjsLoaded && !pdfDoc) {
-          const loadDoc = async () => {
-            try {
-              const loadingTask = window.pdfjsLib.getDocument(pdfFile);
-              const doc = await loadingTask.promise;
-              setPdfDoc(doc);
-              setNumPages(doc.numPages);
-              renderPage(pageNum, doc);
-            } catch (error) {
-              console.error("Error loading PDF: ", error);
-            }
-          };
-          loadDoc();
+        if (mode === 'edit' && pdfDocRef.current) {
+          pdfDocRef.current.destroy();
+          pdfDocRef.current = null;
+          setPdfDoc(null);
+          setNumPages(0);
+          setPageNum(1);
         }
-      }, [mode, pdfFile, pdfjsLoaded, pdfDoc, pageNum, renderPage]);
+      }, [mode]);
 
-      // Re-render when page changes
+      // Load PDF document when entering presentation mode
       useEffect(() => {
-        if (mode === 'present' && pdfDoc) {
-          renderPage(pageNum);
-        }
-      }, [pageNum, mode, pdfDoc, renderPage]);
-
-      // Handle Window Resize in Presentation Mode
-      useEffect(() => {
-        const handleResize = () => {
-          if (mode === 'present' && pdfDoc) {
-            renderPage(pageNum);
+        if (mode !== 'present' || !pdfFile || !pdfjsLoaded || pdfDoc) return;
+        const loadDoc = async () => {
+          try {
+            const doc = await window.pdfjsLib.getDocument(pdfFile).promise;
+            pdfDocRef.current = doc;
+            setPdfDoc(doc);
+            setNumPages(doc.numPages);
+            renderPage(1, doc);
+          } catch (err) {
+            console.error('Error loading PDF:', err);
+            setErrorMessage('Failed to load the PDF. Please try re-uploading.');
+            setMode('edit');
           }
         };
+        loadDoc();
+      }, [mode, pdfFile, pdfjsLoaded, pdfDoc, renderPage]);
+
+      // Re-render when the page number changes
+      useEffect(() => {
+        if (mode === 'present' && pdfDoc) renderPage(pageNum);
+      }, [pageNum, mode, pdfDoc, renderPage]);
+
+      // Debounced resize handler (150 ms) – prevents continuous re-renders while resizing
+      useEffect(() => {
+        let timer = null;
+        const handleResize = () => {
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            if (mode === 'present' && pdfDoc) renderPage(pageNum);
+          }, 150);
+        };
         window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
+        return () => { window.removeEventListener('resize', handleResize); clearTimeout(timer); };
       }, [mode, pdfDoc, pageNum, renderPage]);
 
       // Keyboard navigation
       useEffect(() => {
         const handleKeyDown = (e) => {
           if (mode !== 'present') return;
-          
           if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
-            if (pageNum < numPages) setPageNum(prev => prev + 1);
+            setPageNum(prev => Math.min(prev + 1, numPages));
           } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-            if (pageNum > 1) setPageNum(prev => prev - 1);
+            setPageNum(prev => Math.max(prev - 1, 1));
           } else if (e.key === 'Escape') {
             setMode('edit');
           }
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-      }, [mode, pageNum, numPages]);
+      }, [mode, numPages]);
 
-      // Ticker content generation (duplicated for seamless loop)
-      const tickerItems = shoutOuts.length > 0 ? shoutOuts : [{ id: 0, to: 'The Team', from: 'Management', message: 'Welcome to the Town Hall!' }];
-      const duplicateTicker = [...tickerItems, ...tickerItems, ...tickerItems];
+      // Touch / swipe navigation
+      useEffect(() => {
+        let touchStartX = null;
+        const onTouchStart = (e) => { touchStartX = e.touches[0].clientX; };
+        const onTouchEnd = (e) => {
+          if (touchStartX === null || mode !== 'present') return;
+          const delta = touchStartX - e.changedTouches[0].clientX;
+          if (Math.abs(delta) > 50) {
+            setPageNum(prev =>
+              delta > 0 ? Math.min(prev + 1, numPages) : Math.max(prev - 1, 1)
+            );
+          }
+          touchStartX = null;
+        };
+        window.addEventListener('touchstart', onTouchStart, { passive: true });
+        window.addEventListener('touchend',   onTouchEnd,   { passive: true });
+        return () => {
+          window.removeEventListener('touchstart', onTouchStart);
+          window.removeEventListener('touchend',   onTouchEnd);
+        };
+      }, [mode, numPages]);
 
+      // -------------------------------------------------------------------------
+      // Memoised ticker data
+      // -------------------------------------------------------------------------
+      const tickerItems = useMemo(
+        () => shoutOuts.length > 0 ? shoutOuts : [DEFAULT_TICKER_ITEM],
+        [shoutOuts],
+      );
+      const duplicateTicker = useMemo(
+        () => [...tickerItems, ...tickerItems, ...tickerItems],
+        [tickerItems],
+      );
+      const tickerAnimDuration = useMemo(
+        () => Math.max(tickerItems.length * SECONDS_PER_ITEM, MIN_ANIM_DURATION),
+        [tickerItems],
+      );
+
+      // =========================================================================
+      // PRESENTATION VIEW
+      // =========================================================================
       if (mode === 'present') {
         return (
-          <div className="flex flex-col h-screen w-screen bg-black overflow-hidden font-sans">
-            {/* Custom Styles for Ticker */}
-            <style dangerouslySetInnerHTML={{__html: `
-              @keyframes ticker {
-                0% { transform: translateX(0); }
-                100% { transform: translateX(-33.33%); } /* Assuming 3 copies, shifting by 1/3 loops perfectly */
-              }
-              .animate-ticker {
-                display: inline-flex;
-                white-space: nowrap;
-                animation: ticker ${Math.max(tickerItems.length * 8, 20)}s linear infinite;
-              }
-              .animate-ticker:hover {
-                animation-play-state: paused;
-              }
-            `}} />
-
-            {/* Top Control Bar (Visible on hover) */}
+          <div
+            className="flex flex-col h-screen w-screen bg-black overflow-hidden font-sans"
+            style={{ '--ticker-anim-duration': `${tickerAnimDuration}s` }}
+          >
+            {/* Top Control Bar – visible on hover */}
             <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center opacity-0 hover:opacity-100 transition-opacity z-50 bg-gradient-to-b from-black/80 to-transparent text-white">
               <div className="flex items-center space-x-2">
                 <span className="font-bold">Town Hall</span>
                 <span className="text-gray-400 text-sm">| Presenting: {pdfFileName}</span>
               </div>
               <div className="flex items-center space-x-4">
-                <span className="text-sm bg-black/50 px-3 py-1 rounded-full">
+                <span className="text-sm bg-black/50 px-3 py-1 rounded-full" aria-live="polite">
                   Page {pageNum} of {numPages}
                 </span>
-                <button 
+                <button
                   onClick={() => setMode('edit')}
                   className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium transition-colors"
                 >
-                  <X className="w-4 h-4 mr-2" /> Exit Presentation
+                  <X className="w-4 h-4 mr-2" aria-hidden="true" /> Exit Presentation
                 </button>
               </div>
             </div>
 
-            {/* Navigation Overlay Areas */}
-            <div 
-              className="absolute left-0 top-0 bottom-20 w-1/6 z-40 cursor-pointer flex items-center justify-start pl-4 group"
-              onClick={() => pageNum > 1 && setPageNum(prev => prev - 1)}
+            {/* Navigation – Previous slide */}
+            <button
+              aria-label="Previous slide"
+              onClick={() => setPageNum(prev => Math.max(prev - 1, 1))}
+              className="absolute left-0 top-0 bottom-20 w-1/6 z-40 flex items-center justify-start pl-4 group bg-transparent border-0 cursor-pointer"
             >
               <div className="opacity-0 group-hover:opacity-100 p-2 bg-black/40 rounded-full text-white transition-opacity">
-                <ChevronLeft className="w-10 h-10" />
+                <ChevronLeft className="w-10 h-10" aria-hidden="true" />
               </div>
-            </div>
-            <div 
-              className="absolute right-0 top-0 bottom-20 w-1/6 z-40 cursor-pointer flex items-center justify-end pr-4 group"
-              onClick={() => pageNum < numPages && setPageNum(prev => prev + 1)}
+            </button>
+
+            {/* Navigation – Next slide */}
+            <button
+              aria-label="Next slide"
+              onClick={() => setPageNum(prev => Math.min(prev + 1, numPages))}
+              className="absolute right-0 top-0 bottom-20 w-1/6 z-40 flex items-center justify-end pr-4 group bg-transparent border-0 cursor-pointer"
             >
               <div className="opacity-0 group-hover:opacity-100 p-2 bg-black/40 rounded-full text-white transition-opacity">
-                <ChevronRight className="w-10 h-10" />
+                <ChevronRight className="w-10 h-10" aria-hidden="true" />
               </div>
-            </div>
+            </button>
 
             {/* Main PDF Display */}
             <div className="flex-1 flex items-center justify-center bg-[#1a1a1a] relative z-10 overflow-hidden">
               {!pdfDoc && (
-                <div className="text-white animate-pulse">Loading presentation...</div>
+                <div className="text-white animate-pulse">Loading presentation…</div>
               )}
-              <canvas ref={canvasRef} className="shadow-2xl" />
+              <canvas
+                ref={canvasRef}
+                className="shadow-2xl"
+                role="img"
+                aria-label={`Presentation slide ${pageNum} of ${numPages}`}
+              />
             </div>
 
             {/* Ticker Tape */}
-            <div 
-              className="h-20 w-full flex items-center overflow-hidden shrink-0 relative z-50 border-t-4"
-              style={{ backgroundColor: nhsBlue, borderColor: nhsLightBlue }}
+            <div
+              role="marquee"
+              aria-label="Staff shout-outs"
+              className="shrink-0 relative z-50 border-t-4 overflow-hidden flex items-center"
+              style={{ height: `${TICKER_HEIGHT_PX}px`, backgroundColor: BRAND_COLOR, borderColor: BRAND_LIGHT }}
             >
               <div className="animate-ticker">
                 {duplicateTicker.map((s, i) => (
                   <div key={`${s.id}-${i}`} className="inline-flex items-center mx-12 text-2xl text-white">
-                    <span className="text-yellow-300 mr-3">⭐</span>
+                    <span className="text-yellow-300 mr-3" aria-hidden="true">⭐</span>
                     <span className="font-bold mr-2">To: {s.to}</span>
-                    <span className="text-blue-200 mr-2">|</span>
-                    <span className="italic mr-3 text-blue-100">From: {s.from}</span>
+                    <span className="text-white/50 mr-2" aria-hidden="true">|</span>
+                    <span className="italic mr-3 text-white/80">From: {s.from}</span>
                     <span className="font-light tracking-wide">— "{s.message}"</span>
                   </div>
                 ))}
@@ -396,26 +575,53 @@ TOOL_OVERVIEW_END
         );
       }
 
-      // --- EDIT MODE ---
+      // =========================================================================
+      // EDIT MODE
+      // =========================================================================
       return (
         <div className="min-h-screen bg-gray-50 font-sans">
+
+          {/* Error Banner */}
+          {errorMessage && (
+            <div
+              role="alert"
+              className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 py-3 bg-red-600 text-white shadow-lg"
+            >
+              <span className="text-sm font-medium">{errorMessage}</span>
+              <button
+                onClick={() => setErrorMessage('')}
+                aria-label="Dismiss error"
+                className="ml-4 p-1 rounded hover:bg-red-700 transition-colors"
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+          )}
+
+          {/* Import Success Toast */}
+          {importToast && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="fixed top-4 right-4 z-[100] px-4 py-3 bg-green-600 text-white text-sm font-medium rounded-lg shadow-lg"
+            >
+              ✓ {importToast}
+            </div>
+          )}
+
           {/* Header */}
-          <header className="text-white shadow-md relative z-10" style={{ backgroundColor: nhsBlue }}>
+          <header className="text-white shadow-md relative z-10" style={{ backgroundColor: BRAND_COLOR }}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
-              <div className="flex items-center">
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight">Town Hall Presenter</h1>
-                </div>
-              </div>
+              <h1 className="text-2xl font-bold tracking-tight">Town Hall Presenter</h1>
               <button
                 onClick={startPresentation}
                 disabled={!pdfFile}
                 className={`flex items-center px-6 py-3 rounded-md font-semibold transition-all shadow-sm
-                  ${pdfFile 
-                    ? 'bg-green-500 hover:bg-green-600 text-white transform hover:scale-105' 
+                  ${pdfFile
+                    ? 'bg-green-500 hover:bg-green-600 text-white transform hover:scale-105'
                     : 'bg-gray-400 text-gray-200 cursor-not-allowed'}`}
               >
-                <MonitorPlay className="w-5 h-5 mr-2" />
+                <MonitorPlay className="w-5 h-5 mr-2" aria-hidden="true" />
                 Start Presentation
               </button>
             </div>
@@ -423,40 +629,34 @@ TOOL_OVERVIEW_END
 
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              
-              {/* Left Column: Slides Management */}
+
+              {/* Left Column: PDF Upload */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center" style={{ color: nhsDarkBlue }}>
-                    <FileText className="w-5 h-5 mr-2" style={{ color: nhsBlue }} />
+                  <h2 className="text-lg font-bold mb-4 flex items-center" style={{ color: BRAND_DARK }}>
+                    <FileText className="w-5 h-5 mr-2" style={{ color: BRAND_COLOR }} aria-hidden="true" />
                     1. Upload Presentation Slides
                   </h2>
                   <p className="text-sm text-gray-600 mb-4">
                     Upload the main slide deck (PDF format only) for the Town Hall meeting.
                   </p>
-                  
-                  <div className="mt-2">
-                    <label 
-                      htmlFor="file-upload" 
-                      className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition-colors"
-                    >
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                        <p className="mb-2 text-sm text-gray-500 font-medium">Click to upload a PDF</p>
-                      </div>
-                      <input 
-                        id="file-upload" 
-                        type="file" 
-                        accept="application/pdf" 
-                        className="hidden" 
-                        onChange={handleFileUpload} 
-                      />
-                    </label>
-                  </div>
-                  
+                  <label
+                    htmlFor="file-upload"
+                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                  >
+                    <Upload className="w-8 h-8 text-gray-400 mb-2" aria-hidden="true" />
+                    <span className="text-sm text-gray-500 font-medium">Click to upload a PDF</span>
+                    <input
+                      id="file-upload"
+                      type="file"
+                      accept="application/pdf"
+                      className="sr-only"
+                      onChange={handleFileUpload}
+                    />
+                  </label>
                   {pdfFileName && (
                     <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md flex items-center text-sm text-blue-800">
-                      <FileText className="w-4 h-4 mr-2 text-blue-600 shrink-0" />
+                      <FileText className="w-4 h-4 mr-2 text-blue-600 shrink-0" aria-hidden="true" />
                       <span className="truncate font-medium">{pdfFileName}</span>
                     </div>
                   )}
@@ -464,60 +664,67 @@ TOOL_OVERVIEW_END
 
                 <div className="bg-blue-50 rounded-xl border border-blue-100 p-6">
                   <h3 className="text-sm font-bold text-blue-900 mb-2 flex items-center">
-                    <Info className="w-4 h-4 mr-1" /> Presenter Controls
+                    <Info className="w-4 h-4 mr-1" aria-hidden="true" /> Presenter Controls
                   </h3>
                   <ul className="text-sm text-blue-800 space-y-2 list-disc pl-4 marker:text-blue-400">
                     <li>Press <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">Space</kbd> or <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">→</kbd> for Next Page</li>
                     <li>Press <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">←</kbd> for Previous Page</li>
-                    <li>Press <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">Esc</kbd> to exit full screen</li>
-                    <li>Hover at the top of the screen to view slide numbers and exit button.</li>
+                    <li>Press <kbd className="px-1.5 py-0.5 bg-white border border-blue-200 rounded text-xs font-mono">Esc</kbd> to exit presentation</li>
+                    <li>Swipe left or right on touch screens to navigate.</li>
+                    <li>Hover at the top of the screen to view slide number and exit button.</li>
                   </ul>
                 </div>
               </div>
 
-              {/* Right Column: Shout-outs Management */}
+              {/* Right Column: Shout-outs */}
               <div className="lg:col-span-2">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 h-full flex flex-col">
-                  <h2 className="text-lg font-bold mb-6 flex items-center" style={{ color: nhsDarkBlue }}>
-                    <span className="text-2xl mr-2">⭐</span> 
+                  <h2 className="text-lg font-bold mb-6 flex items-center" style={{ color: BRAND_DARK }}>
+                    <span className="text-2xl mr-2" aria-hidden="true">⭐</span>
                     2. Manage Shout-outs
                   </h2>
 
-                  {/* Add New Form */}
+                  {/* Add Form */}
                   <form onSubmit={addShoutOut} className="bg-gray-50 p-5 rounded-lg border border-gray-200 mb-8">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Add New Shout-out</h3>
                       <div>
+                        {/* Hidden file input; triggered by the visible button below */}
                         <input
                           type="file"
                           accept=".csv,text/csv"
                           ref={csvInputRef}
-                          className="hidden"
+                          className="sr-only"
+                          aria-hidden="true"
+                          tabIndex="-1"
                           onChange={handleCsvUpload}
                         />
-                        <div className="relative group/tooltip">
-                          <button
-                            type="button"
-                            onClick={() => csvInputRef.current && csvInputRef.current.click()}
-                            className="flex items-center px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 transition-colors"
-                          >
-                            <FileSpreadsheet className="w-4 h-4 mr-1.5" />
-                            Import CSV
-                          </button>
-                          <div className="absolute right-0 top-full mt-2 w-72 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl z-50 pointer-events-none opacity-0 group-hover/tooltip:opacity-100 transition-opacity duration-150">
-                            <p className="font-bold mb-1.5 text-green-300">Expected CSV format</p>
-                            <p className="mb-2 text-gray-300">Three columns, compatible with Excel exports. A header row is optional and will be skipped automatically.</p>
-                            <code className="block bg-gray-800 rounded p-2 leading-relaxed text-green-200 whitespace-pre">to,from,message{'\n'}Team Name,Sender,Well done!</code>
-                            <div className="absolute -top-1.5 right-4 w-3 h-3 bg-gray-900 rotate-45" />
-                          </div>
-                        </div>
+                        {/* Visually-hidden description linked via aria-describedby */}
+                        <p id="csv-format-hint" className="sr-only">
+                          Expected CSV format: three columns named "to", "from", and "message".
+                          A header row is optional and will be skipped automatically.
+                          Compatible with Excel exports.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => csvInputRef.current && csvInputRef.current.click()}
+                          aria-describedby="csv-format-hint"
+                          className="flex items-center px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 transition-colors"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 mr-1.5" aria-hidden="true" />
+                          Import CSV
+                        </button>
                       </div>
                     </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">To (Recipient / Team)</label>
-                        <input 
-                          type="text" 
+                        <label htmlFor="shoutout-to" className="block text-sm font-medium text-gray-700 mb-1">
+                          To (Recipient / Team)
+                        </label>
+                        <input
+                          id="shoutout-to"
+                          type="text"
                           value={newTo}
                           onChange={e => setNewTo(e.target.value)}
                           placeholder="e.g. Front-end Dev Team"
@@ -526,9 +733,12 @@ TOOL_OVERVIEW_END
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">From (Sender)</label>
-                        <input 
-                          type="text" 
+                        <label htmlFor="shoutout-from" className="block text-sm font-medium text-gray-700 mb-1">
+                          From (Sender)
+                        </label>
+                        <input
+                          id="shoutout-from"
+                          type="text"
                           value={newFrom}
                           onChange={e => setNewFrom(e.target.value)}
                           placeholder="e.g. John Smith"
@@ -536,23 +746,28 @@ TOOL_OVERVIEW_END
                         />
                       </div>
                     </div>
+
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                      <textarea 
+                      <label htmlFor="shoutout-message" className="block text-sm font-medium text-gray-700 mb-1">
+                        Message
+                      </label>
+                      <textarea
+                        id="shoutout-message"
                         value={newMessage}
                         onChange={e => setNewMessage(e.target.value)}
-                        placeholder="Briefly describe why you are shouting them out..."
+                        placeholder="Briefly describe why you are shouting them out…"
                         rows="2"
                         className="w-full rounded-md border-gray-300 border p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
                         required
                       />
                     </div>
-                    <button 
-                      type="submit" 
+
+                    <button
+                      type="submit"
                       className="flex items-center text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm"
-                      style={{ backgroundColor: nhsBlue }}
+                      style={{ backgroundColor: BRAND_COLOR }}
                     >
-                      <Plus className="w-4 h-4 mr-1" /> Add to Ticker Tape
+                      <Plus className="w-4 h-4 mr-1" aria-hidden="true" /> Add to Ticker Tape
                     </button>
                   </form>
 
@@ -563,33 +778,32 @@ TOOL_OVERVIEW_END
                         Current Queue ({shoutOuts.length})
                       </h3>
                     </div>
-                    
                     <div className="flex-1 overflow-y-auto pr-2" style={{ maxHeight: '400px' }}>
                       {shoutOuts.length === 0 ? (
                         <div className="text-center py-10 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
-                          No shout-outs added yet. Use the form above to build your ticker queue.
+                          No shout-outs yet. Add one above or import a CSV file.
                         </div>
                       ) : (
-                        <ul className="space-y-3">
+                        <ul className="space-y-3" aria-label="Shout-out queue">
                           {shoutOuts.map((shout, index) => (
-                            <li key={shout.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow transition-shadow flex items-start group relative">
-                              <div className="bg-yellow-100 text-yellow-600 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-4 shrink-0 mt-1">
+                            <li key={shout.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow transition-shadow flex items-start relative">
+                              <div className="bg-yellow-100 text-yellow-600 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-4 shrink-0 mt-1" aria-hidden="true">
                                 {index + 1}
                               </div>
                               <div className="flex-1 pr-10">
                                 <p className="text-sm mb-1">
                                   <span className="font-bold text-gray-900">{shout.to}</span>
-                                  <span className="text-gray-400 mx-2">|</span>
+                                  <span className="text-gray-400 mx-2" aria-hidden="true">|</span>
                                   <span className="text-gray-600 italic">From: {shout.from}</span>
                                 </p>
                                 <p className="text-gray-800 text-sm">{shout.message}</p>
                               </div>
-                              <button 
+                              <button
                                 onClick={() => deleteShoutOut(shout.id)}
+                                aria-label={`Remove shout-out to ${shout.to}`}
                                 className="absolute right-4 top-4 text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors"
-                                title="Remove shout-out"
                               >
-                                <Trash2 className="w-5 h-5" />
+                                <Trash2 className="w-5 h-5" aria-hidden="true" />
                               </button>
                             </li>
                           ))}
