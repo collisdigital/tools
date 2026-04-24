@@ -709,15 +709,23 @@ TOOL_OVERVIEW_END
                           A header row is optional and will be skipped automatically.
                           Compatible with Excel exports.
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => csvInputRef.current && csvInputRef.current.click()}
-                          aria-describedby="csv-format-hint"
-                          className="flex items-center px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 transition-colors"
-                        >
-                          <FileSpreadsheet className="w-4 h-4 mr-1.5" aria-hidden="true" />
-                          Import CSV
-                        </button>
+                        <div className="relative group/tooltip">
+                          <button
+                            type="button"
+                            onClick={() => csvInputRef.current && csvInputRef.current.click()}
+                            aria-describedby="csv-format-hint"
+                            className="flex items-center px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 transition-colors"
+                          >
+                            <FileSpreadsheet className="w-4 h-4 mr-1.5" aria-hidden="true" />
+                            Import CSV
+                          </button>
+                          <div className="absolute right-0 top-full mt-2 w-72 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl z-50 pointer-events-none opacity-0 group-hover/tooltip:opacity-100 transition-opacity duration-150" aria-hidden="true">
+                            <p className="font-bold mb-1.5 text-green-300">Expected CSV format</p>
+                            <p className="mb-2 text-gray-300">Three columns, compatible with Excel exports. A header row is optional and will be skipped automatically.</p>
+                            <code className="block bg-gray-800 rounded p-2 leading-relaxed text-green-200 whitespace-pre">{'to,from,message\nTeam Name,Sender,Well done!'}</code>
+                            <div className="absolute -top-1.5 right-4 w-3 h-3 bg-gray-900 rotate-45" aria-hidden="true" />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
