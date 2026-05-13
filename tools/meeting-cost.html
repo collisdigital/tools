@@ -1,0 +1,294 @@
+<!--
+TOOL_OVERVIEW_START
+{
+  "name": "NHS Wales Meeting Cost Calculator (2026/27)",
+  "description": "An interactive utility designed for NHS staff to quantify the financial value of time spent in meetings based on official 2026/27 Agenda for Change pay scales.",
+  "functionality": {
+    "dynamic_estimation": "Real-time cost calculation using synchronized sliders for attendees, duration (up to 8 hours), and pay bands.",
+    "transparency_tools": "Includes a breakdown of calculations and a shareable summary badge for meeting transparency."
+  },
+  "dependencies": ["Tailwind CSS", "Google Fonts (Inter)"],
+  "last_updated": "2026-05-13"
+}
+TOOL_OVERVIEW_END
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHS Wales Meeting Cost Calculator (2026/27)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .badge-gradient {
+            background: linear-gradient(135deg, #005eb8 0%, #003087 100%);
+        }
+        input[type=range] {
+            accent-color: #2563eb;
+        }
+        /* Hide arrows in number input for a cleaner look when synced with slider */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen pb-12">
+
+    <div class="max-w-3xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <div class="inline-block bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-3">
+                NHS Wales 2026/27 Rates
+            </div>
+            <h1 class="text-3xl font-bold text-gray-900">Meeting Cost Calculator</h1>
+            <p class="text-gray-600 mt-2">Quantifying the value of clinical and administrative time.</p>
+        </header>
+
+        <!-- Calculator Form -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 mb-6">
+            <div class="space-y-8 mb-8">
+                
+                <!-- Attendees Control -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-sm font-semibold text-gray-700">Number of Attendees</label>
+                        <div class="flex items-center space-x-2">
+                            <input type="number" id="attendeesInput" value="5" min="1" class="w-20 px-2 py-1 text-center rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-blue-700 bg-blue-50">
+                            <span class="text-xs text-gray-400 font-medium uppercase">People</span>
+                        </div>
+                    </div>
+                    <input type="range" id="attendeesSlider" min="1" max="100" value="5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-gray-400 mt-2 uppercase tracking-tighter font-bold">
+                        <span>1</span>
+                        <span>25</span>
+                        <span>50</span>
+                        <span>75</span>
+                        <span>100 (Use box for more)</span>
+                    </div>
+                </div>
+
+                <!-- Duration Slider -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-sm font-semibold text-gray-700">Meeting Duration</label>
+                        <span id="durationDisplay" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg font-bold text-sm">60 mins</span>
+                    </div>
+                    <input type="range" id="durationSlider" min="5" max="480" step="5" value="60" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-gray-400 mt-2 uppercase tracking-tighter font-bold">
+                        <span>5 Mins</span>
+                        <span>2 Hours</span>
+                        <span>4 Hours</span>
+                        <span>6 Hours</span>
+                        <span>8 Hours</span>
+                    </div>
+                </div>
+
+                <!-- Band Slider -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-sm font-semibold text-gray-700">Average Pay Band</label>
+                        <span id="bandDisplay" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg font-bold text-sm">Band 6</span>
+                    </div>
+                    <input type="range" id="bandSlider" min="0" max="11" step="1" value="5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-gray-400 mt-2 uppercase tracking-tighter font-bold">
+                        <span>Band 1</span>
+                        <span>Band 5</span>
+                        <span>Band 9</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Result Display -->
+            <div class="bg-blue-50 rounded-2xl p-6 text-center border border-blue-100">
+                <span class="text-blue-600 font-semibold text-sm uppercase">Estimated Meeting Cost</span>
+                <div class="text-5xl font-extrabold text-blue-900 my-2" id="totalCost">£0.00</div>
+                <p class="text-blue-700/80 text-sm italic" id="rateUsedText">Based on Band Average</p>
+            </div>
+        </div>
+
+        <!-- Math/Calculation Explanation -->
+        <div class="bg-gray-100 rounded-xl p-6 mb-6">
+            <h3 class="font-bold text-gray-800 mb-3 flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                The Math
+            </h3>
+            <div id="mathBreakdown" class="text-sm text-gray-700 space-y-2 font-mono bg-white p-4 rounded-lg border border-gray-200">
+                <!-- Breakdown populated by JS -->
+            </div>
+        </div>
+
+        <!-- Shareable Badge -->
+        <div class="mb-6">
+            <h3 class="font-bold text-gray-800 mb-3">Shareable Badge</h3>
+            <div id="shareBadge" class="badge-gradient text-white p-8 rounded-3xl shadow-xl relative overflow-hidden flex flex-col items-center justify-center text-center">
+                <svg class="absolute top-0 right-0 opacity-10 w-32 h-32 -mr-10 -mt-10" fill="currentColor" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="50"></circle>
+                </svg>
+                
+                <div class="relative z-10 w-full">
+                    <div class="flex items-center justify-center space-x-2 mb-4">
+                        <span class="h-1 w-8 bg-blue-300 rounded-full"></span>
+                        <span class="text-xs font-bold tracking-widest uppercase text-blue-200">NHS Wales Insight</span>
+                        <span class="h-1 w-8 bg-blue-300 rounded-full"></span>
+                    </div>
+                    <h4 class="text-lg font-medium opacity-90 mb-1">Meeting Resource Value</h4>
+                    <div class="text-6xl font-black mb-4 tracking-tight" id="badgeCost">£0.00</div>
+                    <div class="grid grid-cols-2 gap-4 text-xs font-medium text-blue-100 border-t border-blue-400/30 pt-4 mt-2">
+                        <div class="text-left">
+                            <div class="opacity-60 uppercase tracking-tighter font-bold">Attendees</div>
+                            <div class="text-lg" id="badgeAttendees">5 People</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="opacity-60 uppercase tracking-tighter font-bold">Duration</div>
+                            <div class="text-lg" id="badgeDuration">60 Mins</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-3 text-center italic">Tip: Take a screenshot of the card above to paste into your meeting notes or chat.</p>
+        </div>
+
+        <!-- Behind the Scenes -->
+        <details class="group bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 list-none">
+                <span class="font-bold text-gray-800">Behind the Scenes: Hourly Rates</span>
+                <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </summary>
+            <div class="p-4 border-t border-gray-200 bg-gray-50 overflow-x-auto">
+                <p class="text-xs text-gray-600 mb-4 italic">Note: Hourly rates are calculated based on 37.5 hours per week (1950 hours per year) as per Agenda for Change standard, using the average of available pay points for each band.</p>
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr class="text-gray-500 uppercase text-[10px] tracking-widest border-b border-gray-200">
+                            <th class="py-2">Band</th>
+                            <th class="py-2">Avg Annual Pay</th>
+                            <th class="py-2">Hourly Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ratesTableBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </div>
+
+    <script>
+        const payData = [
+            { band: "Band 1", points: [26300] },
+            { band: "Band 2", points: [26300, 26300] },
+            { band: "Band 3", points: [26300, 27890] },
+            { band: "Band 4", points: [28819, 31626] },
+            { band: "Band 5", points: [32557, 35114, 39631] },
+            { band: "Band 6", points: [40559, 42805, 48841] },
+            { band: "Band 7", points: [50129, 52712, 57365] },
+            { band: "Band 8a", points: [58379, 61317, 65723] },
+            { band: "Band 8b", points: [67583, 71952, 78530] },
+            { band: "Band 8c", points: [80698, 85611, 92984] },
+            { band: "Band 8d", points: [95773, 101643, 110448] },
+            { band: "Band 9", points: [114475, 121377, 131732] }
+        ];
+
+        const HOURS_PER_YEAR = 1950; 
+
+        const processedRates = payData.map(b => {
+            const sum = b.points.reduce((a, c) => a + c, 0);
+            const avgAnnual = sum / b.points.length;
+            const hourly = avgAnnual / HOURS_PER_YEAR;
+            return {
+                band: b.band,
+                avgAnnual: avgAnnual,
+                hourly: hourly
+            };
+        });
+
+        function formatDuration(mins) {
+            if (mins < 60) return `${mins} mins`;
+            const hrs = Math.floor(mins / 60);
+            const remainingMins = mins % 60;
+            if (remainingMins === 0) return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+            return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ${remainingMins} mins`;
+        }
+
+        function init() {
+            const tableBody = document.getElementById('ratesTableBody');
+
+            processedRates.forEach((r) => {
+                const row = document.createElement('tr');
+                row.className = "border-b border-gray-100 hover:bg-gray-100 transition-colors";
+                row.innerHTML = `
+                    <td class="py-3 font-semibold text-gray-800">${r.band}</td>
+                    <td class="py-3 text-gray-600">£${r.avgAnnual.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                    <td class="py-3 text-blue-600 font-bold">£${r.hourly.toFixed(2)}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            // Listeners for sync and calculation
+            const attendeesInput = document.getElementById('attendeesInput');
+            const attendeesSlider = document.getElementById('attendeesSlider');
+            const durationSlider = document.getElementById('durationSlider');
+            const bandSlider = document.getElementById('bandSlider');
+
+            // Sync Slider to Input
+            attendeesSlider.addEventListener('input', () => {
+                attendeesInput.value = attendeesSlider.value;
+                calculate();
+            });
+
+            // Sync Input to Slider (capping slider at 100)
+            attendeesInput.addEventListener('input', () => {
+                const val = parseInt(attendeesInput.value) || 0;
+                attendeesSlider.value = Math.min(val, 100);
+                calculate();
+            });
+
+            durationSlider.addEventListener('input', calculate);
+            bandSlider.addEventListener('input', calculate);
+
+            calculate();
+        }
+
+        function calculate() {
+            const attendees = parseInt(document.getElementById('attendeesInput').value) || 0;
+            const durationMins = parseInt(document.getElementById('durationSlider').value);
+            const bandIndex = parseInt(document.getElementById('bandSlider').value);
+            
+            const selectedBand = processedRates[bandIndex];
+            const hourlyRate = selectedBand.hourly;
+            const durationHrs = durationMins / 60;
+
+            const costPerPerson = hourlyRate * durationHrs;
+            const totalCost = costPerPerson * attendees;
+
+            // UI Updates
+            document.getElementById('durationDisplay').textContent = formatDuration(durationMins);
+            document.getElementById('bandDisplay').textContent = selectedBand.band;
+
+            const formattedTotal = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(totalCost);
+            document.getElementById('totalCost').textContent = formattedTotal;
+            document.getElementById('badgeCost').textContent = formattedTotal;
+            document.getElementById('badgeAttendees').textContent = `${attendees} ${attendees === 1 ? 'Person' : 'People'}`;
+            document.getElementById('badgeDuration').textContent = formatDuration(durationMins);
+            document.getElementById('rateUsedText').textContent = `Rate: £${hourlyRate.toFixed(2)} / hr (${selectedBand.band} Avg)`;
+
+            // Math Breakdown
+            const breakdown = document.getElementById('mathBreakdown');
+            breakdown.innerHTML = `
+                <div>1. Hourly rate for ${selectedBand.band}: £${hourlyRate.toFixed(2)}</div>
+                <div>2. Duration factor: ${durationMins}m / 60m = ${durationHrs.toFixed(2)} hrs</div>
+                <div class="mt-1 font-bold">3. Cost per attendee: £${hourlyRate.toFixed(2)} × ${durationHrs.toFixed(2)} = £${costPerPerson.toFixed(2)}</div>
+                <div class="mt-2 pt-2 border-t border-gray-100 font-bold text-blue-600">Total: £${costPerPerson.toFixed(2)} × ${attendees} = ${formattedTotal}</div>
+            `;
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
