@@ -110,6 +110,10 @@ TOOL_OVERVIEW_END
                 <span class="text-blue-600 font-semibold text-sm uppercase">Estimated Meeting Cost</span>
                 <div class="text-5xl font-extrabold text-blue-900 my-2" id="totalCost">£0.00</div>
                 <p class="text-blue-700/80 text-sm italic" id="rateUsedText">Based on Band Average</p>
+                <button onclick="copyLink()" class="mt-4 inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    <span id="copyLinkLabel">Copy shareable link</span>
+                </button>
             </div>
         </div>
 
@@ -220,6 +224,14 @@ TOOL_OVERVIEW_END
             return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ${remainingMins} mins`;
         }
 
+        function updateURL() {
+            const attendees = document.getElementById('attendeesInput').value;
+            const duration = document.getElementById('durationSlider').value;
+            const band = document.getElementById('bandSlider').value;
+            const params = new URLSearchParams({ attendees, duration, band });
+            history.replaceState(null, '', '?' + params.toString());
+        }
+
         function init() {
             const tableBody = document.getElementById('ratesTableBody');
 
@@ -234,16 +246,32 @@ TOOL_OVERVIEW_END
                 tableBody.appendChild(row);
             });
 
-            // Listeners for sync and calculation
+            // Restore settings from URL params if present
+            const params = new URLSearchParams(window.location.search);
             const attendeesInput = document.getElementById('attendeesInput');
             const attendeesSlider = document.getElementById('attendeesSlider');
             const durationSlider = document.getElementById('durationSlider');
             const bandSlider = document.getElementById('bandSlider');
 
-            // Sync Slider to Input
+            if (params.has('attendees')) {
+                const val = parseInt(params.get('attendees')) || 5;
+                attendeesInput.value = val;
+                attendeesSlider.value = Math.min(val, 100);
+            }
+            if (params.has('duration')) {
+                const val = parseInt(params.get('duration'));
+                if (val >= 5 && val <= 480) durationSlider.value = val;
+            }
+            if (params.has('band')) {
+                const val = parseInt(params.get('band'));
+                if (val >= 0 && val <= 11) bandSlider.value = val;
+            }
+
+            // Listeners for sync and calculation
             attendeesSlider.addEventListener('input', () => {
                 attendeesInput.value = attendeesSlider.value;
                 calculate();
+                updateURL();
             });
 
             // Sync Input to Slider (capping slider at 100)
@@ -251,12 +279,14 @@ TOOL_OVERVIEW_END
                 const val = parseInt(attendeesInput.value) || 0;
                 attendeesSlider.value = Math.min(val, 100);
                 calculate();
+                updateURL();
             });
 
-            durationSlider.addEventListener('input', calculate);
-            bandSlider.addEventListener('input', calculate);
+            durationSlider.addEventListener('input', () => { calculate(); updateURL(); });
+            bandSlider.addEventListener('input', () => { calculate(); updateURL(); });
 
             calculate();
+            updateURL();
         }
 
         function calculate() {
@@ -290,6 +320,14 @@ TOOL_OVERVIEW_END
                 <div class="mt-1 font-bold">3. Cost per attendee: £${hourlyRate.toFixed(2)} × ${durationHrs.toFixed(2)} = £${costPerPerson.toFixed(2)}</div>
                 <div class="mt-2 pt-2 border-t border-gray-100 font-bold text-blue-600">Total: £${costPerPerson.toFixed(2)} × ${attendees} = ${formattedTotal}</div>
             `;
+        }
+
+        function copyLink() {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                const label = document.getElementById('copyLinkLabel');
+                label.textContent = 'Copied!';
+                setTimeout(() => { label.textContent = 'Copy shareable link'; }, 2000);
+            });
         }
 
         window.onload = init;
