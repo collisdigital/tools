@@ -369,7 +369,7 @@ TOOL_OVERVIEW_END
                 setText('totalCost', gbp(annualCost));
                 setText('singleCostText', gbp(singleCost));
                 setText('meetingsPerYearText', formatMeetingsPerYear(rec.perYear));
-                setText('rateUsedText', `${gbp(singleCost)} / meeting · ${formatMeetingsPerYear(rec.perYear)} meetings/year`);
+                setText('rateUsedText', `Rate: £${band.hourly.toFixed(2)} / hr (${band.band} Avg)`);
                 show('perMeetingInfo');
             } else {
                 setText('costLabel', 'Estimated Meeting Cost');
