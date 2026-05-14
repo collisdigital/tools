@@ -109,12 +109,40 @@ TOOL_OVERVIEW_END
                         <span>Band 9</span>
                     </div>
                 </div>
+
+                <!-- Recurrence -->
+                <div class="border-t border-gray-100 pt-6">
+                    <button type="button" onclick="toggleRecurrence()"
+                        class="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                        <span id="recurrenceToggleIcon"
+                            class="w-5 h-5 rounded-full border-2 border-current flex items-center justify-center font-bold text-xs leading-none">+</span>
+                        <span id="recurrenceToggleLabel">Set recurrence schedule</span>
+                    </button>
+                    <div id="recurrencePanel" class="hidden mt-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-sm font-semibold text-gray-700">Recurrence</label>
+                            <span id="recurrenceDisplay" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg font-bold text-sm">Weekly</span>
+                        </div>
+                        <input type="range" id="recurrenceSlider" min="0" max="13" step="1" value="5"
+                            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-[10px] text-gray-400 mt-2 uppercase tracking-tighter font-bold">
+                            <span>Daily</span><span>Weekly</span><span>Monthly</span><span>Twice/yr</span>
+                        </div>
+                        <button type="button" onclick="clearRecurrence()"
+                            class="mt-4 text-xs text-gray-400 hover:text-red-500 transition-colors">
+                            ✕ Remove recurrence
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Result Display -->
             <div class="bg-blue-50 rounded-2xl p-6 text-center border border-blue-100">
-                <span class="text-blue-600 font-semibold text-sm uppercase">Estimated Meeting Cost</span>
+                <span id="costLabel" class="text-blue-600 font-semibold text-sm uppercase">Estimated Meeting Cost</span>
                 <div class="text-5xl font-extrabold text-blue-900 my-2" id="totalCost">£0.00</div>
+                <div id="perMeetingInfo" class="hidden text-sm text-blue-600/80 font-medium mb-1">
+                    <span id="singleCostText"></span> per meeting &times; <span id="meetingsPerYearText"></span> meetings/year
+                </div>
                 <p class="text-blue-700/80 text-sm italic" id="rateUsedText">Based on Band Average</p>
                 <button onclick="copyLink()" class="mt-4 inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
@@ -152,20 +180,31 @@ TOOL_OVERVIEW_END
                     <div id="badgeTitleWrap" class="hidden mb-2">
                         <span id="badgeTitle" class="text-base font-semibold opacity-80"></span>
                     </div>
-                    <h4 class="text-base font-medium opacity-90 mb-1">Estimated Meeting Cost</h4>
-                    <div class="text-4xl font-black mb-4 tracking-tight" id="badgeCost">£0.00</div>
-                    <div class="grid grid-cols-3 gap-3 text-xs font-medium text-blue-100 border-t border-blue-400/30 pt-4 mt-2">
+                    <h4 id="badgeCostLabel" class="text-base font-medium opacity-90 mb-1">Meeting Cost</h4>
+                    <div class="text-4xl font-black tracking-tight" id="badgeCost">£0.00</div>
+                    <p id="badgePerMeeting" class="hidden text-xs text-blue-200 mt-1 mb-3"></p>
+                    <div class="mt-4 grid grid-cols-3 gap-3 text-xs font-medium text-blue-100 border-t border-blue-400/30 pt-4">
                         <div class="text-left whitespace-nowrap">
                             <div class="opacity-60 uppercase tracking-tighter font-bold">Attendees</div>
                             <div class="text-base" id="badgeAttendees">5 People</div>
                         </div>
                         <div class="text-center whitespace-nowrap">
                             <div class="opacity-60 uppercase tracking-tighter font-bold">Duration</div>
-                            <div class="text-base" id="badgeDuration">60 Mins</div>
+                            <div class="text-base" id="badgeDuration">60 mins</div>
                         </div>
                         <div class="text-right whitespace-nowrap">
                             <div class="opacity-60 uppercase tracking-tighter font-bold">Avg Band</div>
                             <div class="text-base" id="badgeBand">Band 6</div>
+                        </div>
+                    </div>
+                    <div id="badgeRecurrenceRow" style="display:none" class="flex justify-between gap-6 text-xs font-medium text-blue-100 border-t border-blue-400/30 pt-3 mt-3">
+                        <div class="text-left whitespace-nowrap">
+                            <div class="opacity-60 uppercase tracking-tighter font-bold">Recurrence</div>
+                            <div class="text-sm" id="badgeRecurrence">Weekly</div>
+                        </div>
+                        <div class="text-right whitespace-nowrap">
+                            <div class="opacity-60 uppercase tracking-tighter font-bold">Meetings/Year</div>
+                            <div class="text-sm" id="badgeMeetingsPerYear">52</div>
                         </div>
                     </div>
                 </div>
@@ -203,163 +242,248 @@ TOOL_OVERVIEW_END
     </div>
 
     <script>
-        const payData = [
-            { band: "Band 1", points: [26300] },
-            { band: "Band 2", points: [26300, 26300] },
-            { band: "Band 3", points: [26300, 27890] },
-            { band: "Band 4", points: [28819, 31626] },
-            { band: "Band 5", points: [32557, 35114, 39631] },
-            { band: "Band 6", points: [40559, 42805, 48841] },
-            { band: "Band 7", points: [50129, 52712, 57365] },
+        // ── Data ─────────────────────────────────────────────────────────────────
+        const PAY_BANDS = [
+            { band: "Band 1",  points: [26300] },
+            { band: "Band 2",  points: [26300, 26300] },
+            { band: "Band 3",  points: [26300, 27890] },
+            { band: "Band 4",  points: [28819, 31626] },
+            { band: "Band 5",  points: [32557, 35114, 39631] },
+            { band: "Band 6",  points: [40559, 42805, 48841] },
+            { band: "Band 7",  points: [50129, 52712, 57365] },
             { band: "Band 8a", points: [58379, 61317, 65723] },
             { band: "Band 8b", points: [67583, 71952, 78530] },
             { band: "Band 8c", points: [80698, 85611, 92984] },
             { band: "Band 8d", points: [95773, 101643, 110448] },
-            { band: "Band 9", points: [114475, 121377, 131732] }
+            { band: "Band 9",  points: [114475, 121377, 131732] },
         ];
 
-        const HOURS_PER_YEAR = 1950; 
+        const RECURRENCE = [
+            { label: "Daily",           perYear: 260     },
+            { label: "Every other day", perYear: 130     },
+            { label: "4× per week",     perYear: 208     },
+            { label: "3× per week",     perYear: 156     },
+            { label: "Twice a week",    perYear: 104     },
+            { label: "Weekly",          perYear: 52      },
+            { label: "Fortnightly",     perYear: 26      },
+            { label: "Every 3 weeks",   perYear: 52 / 3  },
+            { label: "Every 4 weeks",   perYear: 13      },
+            { label: "Monthly",         perYear: 12      },
+            { label: "Every 6 weeks",   perYear: 52 / 6  },
+            { label: "Every 2 months",  perYear: 6       },
+            { label: "Quarterly",       perYear: 4       },
+            { label: "Twice a year",    perYear: 2       },
+        ];
 
-        const processedRates = payData.map(b => {
-            const sum = b.points.reduce((a, c) => a + c, 0);
-            const avgAnnual = sum / b.points.length;
-            const hourly = avgAnnual / HOURS_PER_YEAR;
-            return {
-                band: b.band,
-                avgAnnual: avgAnnual,
-                hourly: hourly
-            };
+        const HOURS_PER_YEAR = 1950;
+
+        const rates = PAY_BANDS.map(({ band, points }) => {
+            const avgAnnual = points.reduce((a, c) => a + c, 0) / points.length;
+            return { band, avgAnnual, hourly: avgAnnual / HOURS_PER_YEAR };
         });
+
+        // ── State ─────────────────────────────────────────────────────────────────
+        let recurrenceActive = false;
+
+        // ── Helpers ───────────────────────────────────────────────────────────────
+        const gbp = v => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(v);
+        const el = id => document.getElementById(id);
+        const show = id => el(id).classList.remove('hidden');
+        const hide = id => el(id).classList.add('hidden');
+        const setText = (id, val) => { el(id).textContent = val; };
 
         function formatDuration(mins) {
             if (mins < 60) return `${mins} mins`;
-            const hrs = Math.floor(mins / 60);
-            const remainingMins = mins % 60;
-            if (remainingMins === 0) return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
-            return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ${remainingMins} mins`;
+            const h = Math.floor(mins / 60), m = mins % 60;
+            return m === 0
+                ? `${h} ${h === 1 ? 'hour' : 'hours'}`
+                : `${h} ${h === 1 ? 'hour' : 'hours'} ${m} mins`;
         }
 
+        function formatMeetingsPerYear(n) {
+            return Number.isInteger(n) ? `${n}` : `~${Math.round(n)}`;
+        }
+
+        // ── URL state ─────────────────────────────────────────────────────────────
         function updateURL() {
-            const attendees = document.getElementById('attendeesInput').value;
-            const duration = document.getElementById('durationSlider').value;
-            const band = document.getElementById('bandSlider').value;
-            const title = document.getElementById('meetingTitle').value.trim();
-            const params = new URLSearchParams({ attendees, duration, band });
+            const params = new URLSearchParams({
+                attendees: el('attendeesInput').value,
+                duration:  el('durationSlider').value,
+                band:      el('bandSlider').value,
+            });
+            const title = el('meetingTitle').value.trim();
             if (title) params.set('title', title);
+            if (recurrenceActive) params.set('recurrence', el('recurrenceSlider').value);
             history.replaceState(null, '', '?' + params.toString());
         }
 
-        function init() {
-            const tableBody = document.getElementById('ratesTableBody');
-
-            processedRates.forEach((r) => {
-                const row = document.createElement('tr');
-                row.className = "border-b border-gray-100 hover:bg-gray-100 transition-colors";
-                row.innerHTML = `
-                    <td class="py-3 font-semibold text-gray-800">${r.band}</td>
-                    <td class="py-3 text-gray-600">£${r.avgAnnual.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
-                    <td class="py-3 text-blue-600 font-bold">£${r.hourly.toFixed(2)}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-
-            // Restore settings from URL params if present
-            const params = new URLSearchParams(window.location.search);
-            const attendeesInput = document.getElementById('attendeesInput');
-            const attendeesSlider = document.getElementById('attendeesSlider');
-            const durationSlider = document.getElementById('durationSlider');
-            const bandSlider = document.getElementById('bandSlider');
-
-            if (params.has('attendees')) {
-                const val = parseInt(params.get('attendees')) || 5;
-                attendeesInput.value = val;
-                attendeesSlider.value = Math.min(val, 100);
-            }
-            if (params.has('duration')) {
-                const val = parseInt(params.get('duration'));
-                if (val >= 5 && val <= 480) durationSlider.value = val;
-            }
-            if (params.has('band')) {
-                const val = parseInt(params.get('band'));
-                if (val >= 0 && val <= 11) bandSlider.value = val;
-            }
-            if (params.has('title')) {
-                document.getElementById('meetingTitle').value = params.get('title').slice(0, 80);
-            }
-
-            // Listeners for sync and calculation
-            document.getElementById('meetingTitle').addEventListener('input', () => { calculate(); updateURL(); });
-            attendeesSlider.addEventListener('input', () => {
-                attendeesInput.value = attendeesSlider.value;
-                calculate();
-                updateURL();
-            });
-
-            // Sync Input to Slider (capping slider at 100)
-            attendeesInput.addEventListener('input', () => {
-                const val = parseInt(attendeesInput.value) || 0;
-                attendeesSlider.value = Math.min(val, 100);
-                calculate();
-                updateURL();
-            });
-
-            durationSlider.addEventListener('input', () => { calculate(); updateURL(); });
-            bandSlider.addEventListener('input', () => { calculate(); updateURL(); });
-
+        // ── Recurrence toggle ─────────────────────────────────────────────────────
+        function toggleRecurrence() {
+            recurrenceActive = !recurrenceActive;
+            applyRecurrenceUI();
             calculate();
             updateURL();
         }
 
-        function calculate() {
-            const attendees = parseInt(document.getElementById('attendeesInput').value) || 0;
-            const durationMins = parseInt(document.getElementById('durationSlider').value);
-            const bandIndex = parseInt(document.getElementById('bandSlider').value);
-            
-            const selectedBand = processedRates[bandIndex];
-            const hourlyRate = selectedBand.hourly;
-            const durationHrs = durationMins / 60;
-
-            const costPerPerson = hourlyRate * durationHrs;
-            const totalCost = costPerPerson * attendees;
-
-            // UI Updates
-            document.getElementById('durationDisplay').textContent = formatDuration(durationMins);
-            document.getElementById('bandDisplay').textContent = selectedBand.band;
-
-            const formattedTotal = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(totalCost);
-            document.getElementById('totalCost').textContent = formattedTotal;
-            document.getElementById('badgeCost').textContent = formattedTotal;
-            document.getElementById('badgeAttendees').textContent = `${attendees} ${attendees === 1 ? 'Person' : 'People'}`;
-            document.getElementById('badgeDuration').textContent = formatDuration(durationMins);
-            document.getElementById('badgeBand').textContent = selectedBand.band;
-            document.getElementById('rateUsedText').textContent = `Rate: £${hourlyRate.toFixed(2)} / hr (${selectedBand.band} Avg)`;
-
-            const title = document.getElementById('meetingTitle').value.trim();
-            const titleWrap = document.getElementById('badgeTitleWrap');
-            const titleEl = document.getElementById('badgeTitle');
-            if (title) {
-                titleEl.textContent = title;
-                titleWrap.classList.remove('hidden');
-            } else {
-                titleWrap.classList.add('hidden');
-            }
-
-            // Math Breakdown
-            const breakdown = document.getElementById('mathBreakdown');
-            breakdown.innerHTML = `
-                <div>1. Hourly rate for ${selectedBand.band}: £${hourlyRate.toFixed(2)}</div>
-                <div>2. Duration factor: ${durationMins}m / 60m = ${durationHrs.toFixed(2)} hrs</div>
-                <div class="mt-1 font-bold">3. Cost per attendee: £${hourlyRate.toFixed(2)} × ${durationHrs.toFixed(2)} = £${costPerPerson.toFixed(2)}</div>
-                <div class="mt-2 pt-2 border-t border-gray-100 font-bold text-blue-600">Total: £${costPerPerson.toFixed(2)} × ${attendees} = ${formattedTotal}</div>
-            `;
+        function clearRecurrence() {
+            recurrenceActive = false;
+            applyRecurrenceUI();
+            calculate();
+            updateURL();
         }
 
+        function applyRecurrenceUI() {
+            if (recurrenceActive) {
+                show('recurrencePanel');
+                setText('recurrenceToggleIcon', '−');
+                setText('recurrenceToggleLabel', 'Recurrence schedule');
+            } else {
+                hide('recurrencePanel');
+                setText('recurrenceToggleIcon', '+');
+                setText('recurrenceToggleLabel', 'Set recurrence schedule');
+            }
+        }
+
+        // ── Core calculation ──────────────────────────────────────────────────────
+        function calculate() {
+            const attendees    = parseInt(el('attendeesInput').value) || 0;
+            const durationMins = parseInt(el('durationSlider').value);
+            const bandIndex    = parseInt(el('bandSlider').value);
+            const recIdx       = parseInt(el('recurrenceSlider').value);
+
+            const band          = rates[bandIndex];
+            const rec           = RECURRENCE[recIdx];
+            const durationHrs   = durationMins / 60;
+            const costPerPerson = band.hourly * durationHrs;
+            const singleCost    = costPerPerson * attendees;
+            const annualCost    = singleCost * rec.perYear;
+
+            // Slider labels
+            setText('durationDisplay', formatDuration(durationMins));
+            setText('bandDisplay', band.band);
+            setText('recurrenceDisplay', rec.label);
+
+            // Result box
+            if (recurrenceActive) {
+                setText('costLabel', 'Estimated Annual Cost');
+                setText('totalCost', gbp(annualCost));
+                setText('singleCostText', gbp(singleCost));
+                setText('meetingsPerYearText', formatMeetingsPerYear(rec.perYear));
+                setText('rateUsedText', `${gbp(singleCost)} / meeting · ${formatMeetingsPerYear(rec.perYear)} meetings/year`);
+                show('perMeetingInfo');
+            } else {
+                setText('costLabel', 'Estimated Meeting Cost');
+                setText('totalCost', gbp(singleCost));
+                setText('rateUsedText', `Rate: £${band.hourly.toFixed(2)} / hr (${band.band} Avg)`);
+                hide('perMeetingInfo');
+            }
+
+            // Badge
+            const title = el('meetingTitle').value.trim();
+            if (title) { setText('badgeTitle', title); show('badgeTitleWrap'); }
+            else { hide('badgeTitleWrap'); }
+
+            if (recurrenceActive) {
+                setText('badgeCostLabel', 'Annual Cost');
+                setText('badgeCost', gbp(annualCost));
+                setText('badgePerMeeting', `${gbp(singleCost)} / meeting`);
+                show('badgePerMeeting');
+                el('badgeRecurrenceRow').style.display = 'flex';
+                setText('badgeRecurrence', rec.label);
+                setText('badgeMeetingsPerYear', `${formatMeetingsPerYear(rec.perYear)} / year`);
+            } else {
+                setText('badgeCostLabel', 'Meeting Cost');
+                setText('badgeCost', gbp(singleCost));
+                hide('badgePerMeeting');
+                el('badgeRecurrenceRow').style.display = 'none';
+            }
+
+            setText('badgeAttendees', `${attendees} ${attendees === 1 ? 'Person' : 'People'}`);
+            setText('badgeDuration', formatDuration(durationMins));
+            setText('badgeBand', band.band);
+
+            // Math breakdown
+            const lines = [
+                `1. Hourly rate for ${band.band}: £${band.hourly.toFixed(2)}`,
+                `2. Duration: ${durationMins}m ÷ 60 = ${durationHrs.toFixed(2)} hrs`,
+                `3. Cost per attendee: £${band.hourly.toFixed(2)} × ${durationHrs.toFixed(2)} = £${costPerPerson.toFixed(2)}`,
+            ];
+            if (recurrenceActive) {
+                lines.push(`4. Meeting total: £${costPerPerson.toFixed(2)} × ${attendees} = ${gbp(singleCost)}`);
+                lines.push(`<span class="font-bold text-blue-600">5. Annual total: ${gbp(singleCost)} × ${formatMeetingsPerYear(rec.perYear)} meetings = ${gbp(annualCost)}</span>`);
+            } else {
+                lines.push(`<span class="font-bold text-blue-600">4. Meeting total: £${costPerPerson.toFixed(2)} × ${attendees} = ${gbp(singleCost)}</span>`);
+            }
+            el('mathBreakdown').innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+        }
+
+        // ── Copy link ─────────────────────────────────────────────────────────────
         function copyLink() {
             navigator.clipboard.writeText(window.location.href).then(() => {
-                const label = document.getElementById('copyLinkLabel');
-                label.textContent = 'Copied!';
-                setTimeout(() => { label.textContent = 'Copy shareable link'; }, 2000);
+                setText('copyLinkLabel', 'Copied!');
+                setTimeout(() => setText('copyLinkLabel', 'Copy shareable link'), 2000);
             });
+        }
+
+        // ── Init ──────────────────────────────────────────────────────────────────
+        function init() {
+            // Populate rates table
+            rates.forEach(r => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-100 hover:bg-gray-100 transition-colors';
+                row.innerHTML = `
+                    <td class="py-3 font-semibold text-gray-800">${r.band}</td>
+                    <td class="py-3 text-gray-600">£${r.avgAnnual.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    <td class="py-3 text-blue-600 font-bold">£${r.hourly.toFixed(2)}</td>
+                `;
+                el('ratesTableBody').appendChild(row);
+            });
+
+            // Restore from URL params
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('attendees')) {
+                const v = parseInt(params.get('attendees')) || 5;
+                el('attendeesInput').value = v;
+                el('attendeesSlider').value = Math.min(v, 100);
+            }
+            if (params.has('duration')) {
+                const v = parseInt(params.get('duration'));
+                if (v >= 5 && v <= 480) el('durationSlider').value = v;
+            }
+            if (params.has('band')) {
+                const v = parseInt(params.get('band'));
+                if (v >= 0 && v <= 11) el('bandSlider').value = v;
+            }
+            if (params.has('title')) {
+                el('meetingTitle').value = params.get('title').slice(0, 80);
+            }
+            if (params.has('recurrence')) {
+                const v = parseInt(params.get('recurrence'));
+                if (v >= 0 && v <= 13) {
+                    el('recurrenceSlider').value = v;
+                    recurrenceActive = true;
+                    applyRecurrenceUI();
+                }
+            }
+
+            // Wire up listeners
+            const onChange = () => { calculate(); updateURL(); };
+            el('meetingTitle').addEventListener('input', onChange);
+            el('durationSlider').addEventListener('input', onChange);
+            el('bandSlider').addEventListener('input', onChange);
+            el('recurrenceSlider').addEventListener('input', onChange);
+            el('attendeesSlider').addEventListener('input', () => {
+                el('attendeesInput').value = el('attendeesSlider').value;
+                onChange();
+            });
+            el('attendeesInput').addEventListener('input', () => {
+                const v = parseInt(el('attendeesInput').value) || 0;
+                el('attendeesSlider').value = Math.min(v, 100);
+                onChange();
+            });
+
+            calculate();
+            updateURL();
         }
 
         window.onload = init;
