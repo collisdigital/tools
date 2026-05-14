@@ -55,6 +55,12 @@ TOOL_OVERVIEW_END
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 mb-6">
             <div class="space-y-8 mb-8">
                 
+                <!-- Meeting Title -->
+                <div>
+                    <label for="meetingTitle" class="text-sm font-semibold text-gray-700 block mb-2">Meeting Title <span class="text-gray-400 font-normal">(optional)</span></label>
+                    <input type="text" id="meetingTitle" maxlength="80" placeholder="e.g. Weekly Standup" class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-gray-800 bg-white text-sm">
+                </div>
+
                 <!-- Attendees Control -->
                 <div>
                     <div class="flex justify-between items-center mb-2">
@@ -103,12 +109,6 @@ TOOL_OVERVIEW_END
                         <span>Band 9</span>
                     </div>
                 </div>
-
-                <!-- Meeting Title -->
-                <div>
-                    <label for="meetingTitle" class="text-sm font-semibold text-gray-700 block mb-2">Meeting Title <span class="text-gray-400 font-normal">(optional)</span></label>
-                    <input type="text" id="meetingTitle" maxlength="80" placeholder="e.g. Weekly Standup" class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-gray-800 bg-white text-sm">
-                </div>
             </div>
 
             <!-- Result Display -->
@@ -138,7 +138,7 @@ TOOL_OVERVIEW_END
         <div class="mb-6">
             <h3 class="font-bold text-gray-800 mb-3 text-center">Shareable Badge</h3>
             <div class="flex justify-center">
-            <div id="shareBadge" class="badge-gradient text-white p-8 rounded-3xl shadow-xl relative overflow-hidden flex flex-col items-center justify-center text-center w-1/2">
+            <div id="shareBadge" class="badge-gradient text-white p-8 rounded-3xl shadow-xl relative overflow-hidden flex flex-col items-center justify-center text-center w-fit min-w-[16rem]">
                 <svg class="absolute top-0 right-0 opacity-10 w-32 h-32 -mr-10 -mt-10" fill="currentColor" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="50"></circle>
                 </svg>
@@ -152,18 +152,18 @@ TOOL_OVERVIEW_END
                     <div id="badgeTitleWrap" class="hidden mb-2">
                         <span id="badgeTitle" class="text-base font-semibold opacity-80"></span>
                     </div>
-                    <h4 class="text-lg font-medium opacity-90 mb-1">Meeting Resource Value</h4>
+                    <h4 class="text-base font-medium opacity-90 mb-1">Estimated Meeting Cost</h4>
                     <div class="text-4xl font-black mb-4 tracking-tight" id="badgeCost">£0.00</div>
                     <div class="grid grid-cols-3 gap-3 text-xs font-medium text-blue-100 border-t border-blue-400/30 pt-4 mt-2">
-                        <div class="text-left">
+                        <div class="text-left whitespace-nowrap">
                             <div class="opacity-60 uppercase tracking-tighter font-bold">Attendees</div>
                             <div class="text-base" id="badgeAttendees">5 People</div>
                         </div>
-                        <div class="text-center">
+                        <div class="text-center whitespace-nowrap">
                             <div class="opacity-60 uppercase tracking-tighter font-bold">Duration</div>
                             <div class="text-base" id="badgeDuration">60 Mins</div>
                         </div>
-                        <div class="text-right">
+                        <div class="text-right whitespace-nowrap">
                             <div class="opacity-60 uppercase tracking-tighter font-bold">Avg Band</div>
                             <div class="text-base" id="badgeBand">Band 6</div>
                         </div>
@@ -171,7 +171,7 @@ TOOL_OVERVIEW_END
                 </div>
             </div>
             </div>
-            <p class="text-xs text-gray-500 mt-3 text-center italic">Tip: Take a screenshot of the card above to paste into your meeting notes or chat.</p>
+            <p class="text-xs text-gray-500 mt-8 text-center italic">Tip: Take a screenshot of the card above to paste into your meeting notes or chat.</p>
         </div>
 
         <!-- Behind the Scenes -->
