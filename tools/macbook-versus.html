@@ -434,7 +434,7 @@ TOOL_OVERVIEW_END
   <!-- Global Footer -->
   <footer class="border-t border-slate-900 bg-slate-950 text-center py-6 text-xs text-slate-500 mt-12 space-y-2">
     <p>© 2026 The MacBook Standard Exchange Index. Approved for corporate redistribution.</p>
-    <p class="italic text-[10px]">Disclaimer: Based on a static corporate exchange rate of £1,000 GBP per premium laptop setup. Budget allocations include imaginary synergy dividends.</p>
+    <p class="italic text-[10px]">Disclaimer: Based on a corporate exchange rate of <span id="footer-mbu-price">£1,000</span> GBP per premium laptop setup. Budget allocations include imaginary synergy dividends.</p>
   </footer>
 
   <!-- App Code Logic -->
@@ -458,6 +458,7 @@ TOOL_OVERVIEW_END
     const badgeCostOutput = document.getElementById('badge-cost-output');
     const badgeMultiplierDisplay = document.getElementById('badge-multiplier-display');
     const badgeMbuPrice = document.getElementById('badge-mbu-price');
+    const footerMbuPrice = document.getElementById('footer-mbu-price');
     const macbookFractionalEmoji = document.getElementById('macbook-fractional-emoji');
     const macbookTierDescription = document.getElementById('macbook-tier-description');
     
@@ -828,8 +829,9 @@ TOOL_OVERVIEW_END
       // Update badge multiplier
       badgeMultiplierDisplay.textContent = wholeCount.toLocaleString();
 
-      // Reflect the current unit price in the badge footer
+      // Reflect the current unit price in the badge footer and page disclaimer
       badgeMbuPrice.textContent = formatCurrency(state.macbookCost);
+      footerMbuPrice.textContent = formatCurrency(state.macbookCost);
 
       // Update description remarks dynamically based on tier range
       let matchingRemark = quirkyRemarks[0].text;
