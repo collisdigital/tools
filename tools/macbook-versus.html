@@ -121,7 +121,25 @@ TOOL_OVERVIEW_END
       </div>
       <div class="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700/60 text-xs text-slate-300">
         <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span>1 MacBook Standard Unit (MBU) = <strong>£1,000 GBP</strong></span>
+        <span class="flex items-center gap-1 whitespace-nowrap">
+          1 MacBook Standard Unit (MBU) =
+          <span class="inline-flex items-center font-bold text-slate-100">
+            £<input
+              id="mbu-price"
+              type="number"
+              min="1"
+              max="100000"
+              value="1000"
+              aria-label="MacBook unit price in GBP"
+              class="w-12 bg-transparent border-b border-dashed border-slate-500 hover:border-slate-400 focus:border-rose-500 outline-none text-slate-100 font-bold text-xs px-0.5 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            /> GBP
+          </span>
+          <button id="mbu-edit-btn" type="button" title="Edit MacBook unit price" class="text-slate-400 hover:text-rose-400 transition shrink-0">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+            </svg>
+          </button>
+        </span>
       </div>
     </div>
   </header>
@@ -260,11 +278,13 @@ TOOL_OVERVIEW_END
       </div>
 
       <!-- Live Badge Capture Region Wrapper -->
-      <div class="relative group">
-        <!-- Visual Instruction Tag -->
-        <span class="absolute -top-3 left-6 z-10 px-3 py-1 bg-rose-500 text-white text-[10px] font-extrabold tracking-wider uppercase rounded-full shadow-lg shadow-rose-500/20">
-          ✨ Shareable Comparison Badge ✨
-        </span>
+      <div class="relative group max-w-[550px] mx-auto">
+        <!-- Visual Instruction Tag (floats above the card via bottom-full, clear of it, so the badge top-aligns with the left panel) -->
+        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2">
+          <span class="inline-block px-3 py-1 bg-rose-500 text-white text-[10px] font-extrabold tracking-wider uppercase rounded-full shadow-lg shadow-rose-500/20">
+            ✨ Shareable Comparison Badge ✨
+          </span>
+        </div>
 
         <!-- The actual capture block with ID so html2canvas can target it cleanly -->
         <div id="badge-capture-area" class="p-6 sm:p-8 rounded-[32px] overflow-hidden transition-all duration-300 shadow-2xl relative border-2 border-transparent">
@@ -280,30 +300,23 @@ TOOL_OVERVIEW_END
           <div id="glow-spot-2" class="absolute -bottom-20 -left-20 w-56 h-56 rounded-full blur-3xl opacity-20 z-0 bg-amber-400"></div>
 
           <!-- Inside content (Z-index high to step over background/grid overlays) -->
-          <div class="relative z-10 flex flex-col justify-between h-full min-h-[380px] text-slate-100">
+          <div class="relative z-10 flex flex-col text-slate-100">
             
             <!-- Badge Header -->
-            <div class="flex justify-between items-start gap-4 border-b border-white/10 pb-4">
-              <div>
-                <span class="text-[10px] font-bold tracking-[0.2em] text-white/50 uppercase block mb-0.5">Corporate Standard</span>
-                <h3 class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white to-white/75 bg-clip-text text-transparent">
-                  MACBOOK EXCHANGE INDEX
-                </h3>
-              </div>
-              <!-- Premium Stamp Badge -->
-              <div class="bg-white/10 backdrop-blur-md border border-white/10 rounded-xl px-2.5 py-1 flex items-center gap-1.5 select-none shrink-0">
-                <span class="text-xs">🍏</span>
-                <span class="text-[10px] font-extrabold tracking-wider text-white">PROCUREMENT</span>
-              </div>
+            <div class="border-b border-white/10 pb-4 text-center">
+              <span class="text-[10px] font-bold tracking-[0.2em] text-white/50 uppercase block mb-0.5">Corporate Standard</span>
+              <h3 id="badge-index-heading" class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white to-white/75 bg-clip-text text-transparent">
+                MACBOOK EXCHANGE INDEX
+              </h3>
             </div>
 
             <!-- Main Calculation Displays -->
-            <div class="my-6 space-y-4">
+            <div class="my-6 space-y-4 text-center">
               <div>
-                <p class="text-xs text-white/60 mb-1 flex items-center gap-1.5">
+                <p class="text-xs text-white/60 mb-1 flex items-center justify-center gap-1.5">
                   <span>💼</span> Instead of approving the cost of:
                 </p>
-                <div id="badge-title-output" class="text-xl sm:text-2xl font-black text-white leading-tight truncate">
+                <div id="badge-title-output" class="text-xl sm:text-2xl font-black text-white leading-tight">
                   A Consultant's 10-Slide Strategy Deck
                 </div>
                 <div class="text-sm font-semibold text-white/80 mt-1">
@@ -319,17 +332,17 @@ TOOL_OVERVIEW_END
               </div>
 
               <!-- Large MacBook Multiplier Display -->
-              <div class="flex items-center gap-4 flex-wrap">
-                <div class="relative">
-                  <span id="badge-multiplier-display" class="text-5xl sm:text-6xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-pink-400 to-amber-300">
+              <div class="flex flex-col items-center gap-1">
+                <div class="relative leading-none">
+                  <span id="badge-multiplier-display" class="text-5xl sm:text-6xl font-black tracking-tight leading-none text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-pink-400 to-amber-300">
                     45
                   </span>
                   <!-- Small Unit marker inside -->
                   <span class="text-lg font-black text-rose-300/90 ml-1">x</span>
                 </div>
                 <div>
-                  <h4 class="font-extrabold text-lg leading-tight text-white flex items-center gap-1.5">
-                    MacBooks <span id="macbook-fractional-emoji">💻✂️</span>
+                  <h4 class="font-extrabold text-lg leading-tight text-white flex items-center justify-center gap-1.5">
+                    MacBooks <span id="macbook-fractional-emoji">💻</span>
                   </h4>
                   <p id="macbook-tier-description" class="text-xs text-white/70 max-w-sm mt-0.5 leading-relaxed font-medium">
                     That's enough to build a small glowing barricade or open a boutique web agency!
@@ -339,14 +352,12 @@ TOOL_OVERVIEW_END
             </div>
 
             <!-- Bottom Meta Badge Info -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-white/10 pt-4 text-xs text-white/50">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-white/10 pt-4 mt-auto text-xs text-white/50">
               <div class="flex items-center gap-2">
                 <span id="badge-date" class="font-medium">Date: --/--/----</span>
-                <span>•</span>
-                <span id="badge-hash" class="font-mono text-[10px]">INDEX-HASH: #814F7</span>
               </div>
-              <div class="font-serif italic text-white/40 text-right sm:text-left">
-                "One MBU a day keeps the cost audit away."
+              <div class="font-medium text-white/60 text-right sm:text-left">
+                1 MacBook = <span id="badge-mbu-price" class="text-white/80 font-bold">£1,000</span>
               </div>
             </div>
 
@@ -390,7 +401,7 @@ TOOL_OVERVIEW_END
       </div>
 
       <!-- Visualized Laptop Grid (Whimsical visualizer) -->
-      <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl backdrop-blur-sm space-y-4">
+      <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl backdrop-blur-sm space-y-4 max-w-[550px] mx-auto w-full">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div>
             <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
@@ -398,7 +409,7 @@ TOOL_OVERVIEW_END
             </h3>
             <p class="text-xs text-slate-400">Visual representation of your approved budget (capped at 100 for grid clarity)</p>
           </div>
-          <span id="grid-counter" class="text-xs font-mono font-bold bg-slate-950/80 px-2.5 py-1 rounded-full border border-slate-800 text-rose-400">
+          <span id="grid-counter" class="text-xs font-mono font-bold bg-slate-950/80 px-2.5 py-1 rounded-full border border-slate-800 text-rose-400 whitespace-nowrap shrink-0">
             0 / 0 Loaded
           </span>
         </div>
@@ -408,10 +419,10 @@ TOOL_OVERVIEW_END
           <!-- Filled dynamically by JavaScript -->
         </div>
 
-        <!-- Clipped explanation footer -->
+        <!-- Leftover-budget explanation footer -->
         <div id="fractional-explain-card" class="bg-slate-950/60 rounded-2xl p-3 border border-slate-800/80 text-xs text-slate-400 flex items-center gap-3">
-          <span class="text-lg">✂️</span>
-          <p id="fractional-explain-text">Adjust the slider to slice up a MacBook. Only perfectly integer prices please Steve Jobs!</p>
+          <span class="text-lg">💷</span>
+          <p id="fractional-explain-text">MacBooks are counted in whole units only — any leftover budget is shown here.</p>
         </div>
       </div>
 
@@ -438,10 +449,13 @@ TOOL_OVERVIEW_END
     const inputTitle = document.getElementById('purchase-title');
     const inputCostNumeric = document.getElementById('numeric-price');
     const inputCostSlider = document.getElementById('slider-price');
+    const inputMbuPrice = document.getElementById('mbu-price');
+    const mbuEditBtn = document.getElementById('mbu-edit-btn');
     
     const badgeTitleOutput = document.getElementById('badge-title-output');
     const badgeCostOutput = document.getElementById('badge-cost-output');
     const badgeMultiplierDisplay = document.getElementById('badge-multiplier-display');
+    const badgeMbuPrice = document.getElementById('badge-mbu-price');
     const macbookFractionalEmoji = document.getElementById('macbook-fractional-emoji');
     const macbookTierDescription = document.getElementById('macbook-tier-description');
     
@@ -450,7 +464,6 @@ TOOL_OVERVIEW_END
     const glowSpot2 = document.getElementById('glow-spot-2');
     
     const badgeDate = document.getElementById('badge-date');
-    const badgeHash = document.getElementById('badge-hash');
     const gridCounter = document.getElementById('grid-counter');
     const macbookGrid = document.getElementById('macbook-grid');
     const fractionalExplainText = document.getElementById('fractional-explain-text');
@@ -517,9 +530,6 @@ TOOL_OVERVIEW_END
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const yyyy = today.getFullYear();
       badgeDate.textContent = `Date: ${dd}/${mm}/${yyyy}`;
-
-      const randomHash = Math.floor(10000 + Math.random() * 90000);
-      badgeHash.textContent = `CORP-HASH: #MBU-${randomHash}`;
     }
 
     // Load URL parameters on page startup
@@ -547,6 +557,14 @@ TOOL_OVERVIEW_END
           state.activeTheme = themeParam;
         }
       }
+      if (params.has('mbu')) {
+        const mbuParam = parseInt(params.get('mbu'));
+        if (!isNaN(mbuParam) && mbuParam >= 1 && mbuParam <= 100000) {
+          state.macbookCost = mbuParam;
+        }
+      }
+      // Reflect the (possibly restored) unit price in the editable field
+      inputMbuPrice.value = state.macbookCost;
     }
 
     // Sync current configuration state to URL parameters seamlessly
@@ -555,6 +573,7 @@ TOOL_OVERVIEW_END
       params.set('title', state.title);
       params.set('cost', state.cost);
       params.set('theme', state.activeTheme);
+      params.set('mbu', state.macbookCost);
       
       const newQueryString = params.toString();
       const relativePath = window.location.pathname + (newQueryString ? '?' + newQueryString : '');
@@ -624,8 +643,8 @@ TOOL_OVERVIEW_END
 
     // Copy formatted text description
     function copyBadgeText() {
-      const macbooksCount = (state.cost / state.macbookCost).toFixed(2);
-      const textToCopy = `💻 THE MACBOOK INDEX (CORPORATE PROCUREMENT) 💻\n\nInstead of spending corporate budgets on: "${state.title}" for ${formatCurrency(state.cost)},\nwe could have procured exactly: ${macbooksCount} Apple MacBooks for the team!\n\nLink to Config: ${window.location.href}\n\nAudited by: The MacBook Standard Exchange Index 🍏`;
+      const macbooksCount = Math.floor(state.cost / state.macbookCost);
+      const textToCopy = `💻 THE MACBOOK INDEX (CORPORATE PROCUREMENT) 💻\n\nInstead of spending corporate budgets on: "${state.title}" for ${formatCurrency(state.cost)},\nwe could have procured ${macbooksCount.toLocaleString()} Apple MacBook${macbooksCount === 1 ? '' : 's'} for the team!\n\nLink to Config: ${window.location.href}\n\nAudited by: The MacBook Standard Exchange Index 🍏`;
       
       // Fallback copy strategy
       const tempTextArea = document.createElement("textarea");
@@ -662,11 +681,63 @@ TOOL_OVERVIEW_END
       document.body.removeChild(tempTextArea);
     }
 
+    // Default button label (SVG icon + text) so we can restore it after capture
+    const downloadBtnDefaultHTML = `
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg> Download PNG
+    `;
+
+    // html2canvas (v1.4.1) can't render `background-clip: text` or tightly-clipped
+    // text. This runs against the *cloned* DOM only, so the live badge is untouched:
+    // it swaps gradient-clipped text for solid fills and relaxes line clamping so
+    // descenders aren't cropped.
+    function prepareCloneForCapture(clonedDoc) {
+      const area = clonedDoc.getElementById('badge-capture-area');
+      if (!area) return;
+
+      // Neutralize every gradient-clipped text node (renders as a solid box otherwise).
+      area.querySelectorAll('.bg-clip-text').forEach(el => {
+        el.style.backgroundImage = 'none';
+        el.style.background = 'none';
+        el.style.webkitBackgroundClip = 'border-box';
+        el.style.backgroundClip = 'border-box';
+        el.style.color = '#ffffff';
+        el.style.webkitTextFillColor = '#ffffff';
+      });
+
+      // The big MacBook count gets a vivid solid fill matching its rose/pink gradient.
+      const mult = clonedDoc.getElementById('badge-multiplier-display');
+      if (mult) {
+        mult.style.color = '#fb7185';        // rose-400
+        mult.style.webkitTextFillColor = '#fb7185';
+        mult.style.lineHeight = '1';
+      }
+
+      // The title is `truncate` (overflow:hidden), which clips descenders (the tail of
+      // a 'g') because html2canvas renders text low in its line box. Let it wrap and
+      // overflow vertically during capture so nothing is cropped in the narrower card.
+      const title = clonedDoc.getElementById('badge-title-output');
+      if (title) {
+        title.style.overflow = 'visible';
+        title.style.whiteSpace = 'normal';
+        title.style.lineHeight = '1.3';
+        title.style.paddingBottom = '0.15em';
+      }
+
+      const heading = clonedDoc.getElementById('badge-index-heading');
+      if (heading) {
+        heading.style.lineHeight = '1.1';
+      }
+    }
+
     // Download dynamic card as PNG via html2canvas
-    function downloadBadge() {
+    async function downloadBadge() {
       const captureArea = document.getElementById('badge-capture-area');
       const downloadBtn = document.getElementById('btn-download');
-      
+
       downloadBtn.disabled = true;
       downloadBtn.innerHTML = `
         <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
@@ -675,121 +746,68 @@ TOOL_OVERVIEW_END
         </svg> Compiling...
       `;
 
-      // Optimize quality configurations for clear captures
-      const config = {
-        scale: 2,
-        backgroundColor: null,
-        useCORS: true,
-        logging: false,
-        borderRadius: 32
-      };
+      try {
+        // Ensure custom fonts are loaded before capture, so text metrics (and the
+        // resulting layout/cropping) match what the user sees on screen.
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
 
-      html2canvas(captureArea, config).then(canvas => {
+        const config = {
+          scale: 2,
+          backgroundColor: null,
+          useCORS: true,
+          logging: false,
+          onclone: prepareCloneForCapture
+        };
+
+        const canvas = await html2canvas(captureArea, config);
+
         const link = document.createElement('a');
-        const fileName = `${state.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}-macbook-standard.png`;
-        
-        link.download = fileName;
+        const safeTitle = state.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'badge';
+        link.download = `${safeTitle}-macbook-standard.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
-        
-        // Reset state
-        downloadBtn.disabled = false;
-        downloadBtn.innerHTML = `
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg> Download PNG
-        `;
-        
-        triggerToast("Corporate badge exported successfully!");
-      }).catch(err => {
-        downloadBtn.disabled = false;
-        downloadBtn.innerHTML = `Download PNG`;
-        triggerToast("Failed to generate image. Please snip manually!", false);
-      });
-    }
 
-    // Calculate fraction explanations
-    function updateFractionalExplanation(fraction) {
-      if (fraction === 0) {
-        fractionalExplainText.textContent = "Perfect whole exchange count. Steve Jobs rests easy knowing there is no audit discrepancy.";
-        macbookFractionalEmoji.textContent = "💻";
-      } else if (fraction <= 0.2) {
-        fractionalExplainText.textContent = "Your fractional MacBook represents just the USB-C dongle adapter bundle and a single sticker sheet.";
-        macbookFractionalEmoji.textContent = "🔌";
-      } else if (fraction <= 0.4) {
-        fractionalExplainText.textContent = "We sliced a MacBook up. For this portion, you'll receive the premium aluminum base and half a trackpad.";
-        macbookFractionalEmoji.textContent = "⌨️";
-      } else if (fraction <= 0.6) {
-        fractionalExplainText.textContent = "Exactly half a MacBook. A cleanly bisected glowing frame. Sliced perfectly down the webcam notch.";
-        macbookFractionalEmoji.textContent = "✂️";
-      } else if (fraction <= 0.8) {
-        fractionalExplainText.textContent = "A generous fraction! You get everything except the power brick. Bring your own corporate hub.";
-        macbookFractionalEmoji.textContent = "🖥️";
-      } else {
-        fractionalExplainText.textContent = "Almost a whole laptop! The packaging has been slightly scuffed by logistics, but it's 95% functional.";
-        macbookFractionalEmoji.textContent = "🍏";
+        triggerToast("Corporate badge exported successfully!");
+      } catch (err) {
+        triggerToast("Failed to generate image. Please snip manually!", false);
+      } finally {
+        downloadBtn.disabled = false;
+        downloadBtn.innerHTML = downloadBtnDefaultHTML;
       }
     }
 
-    // Render MacBook visualization grid
-    function renderMacBookGrid(wholeCount, fraction) {
+    // Explain the leftover budget — MacBooks are only ever counted as whole units.
+    function updateLeftoverExplanation(leftover) {
+      macbookFractionalEmoji.textContent = "💻";
+      if (leftover <= 0) {
+        fractionalExplainText.textContent = "A perfectly whole order. Every pound converts cleanly into MacBooks — Steve Jobs rests easy, no audit discrepancy.";
+      } else {
+        fractionalExplainText.textContent = `${formatCurrency(leftover)} left over — not quite enough for another whole MacBook. We only count complete units.`;
+      }
+    }
+
+    // Render MacBook visualization grid (whole units only)
+    function renderMacBookGrid(wholeCount) {
       macbookGrid.innerHTML = '';
-      
-      const totalVisualToRender = Math.min(100, Math.ceil(wholeCount + (fraction > 0 ? 1 : 0)));
-      
+
+      const totalVisualToRender = Math.min(100, wholeCount);
+
       for (let i = 0; i < totalVisualToRender; i++) {
         const laptopContainer = document.createElement('div');
         laptopContainer.className = "relative aspect-square bg-slate-950 rounded-xl border border-slate-800/80 p-2 flex items-center justify-center hover:border-rose-500/40 transition-colors group/laptop";
         laptopContainer.title = `MacBook Unit #${i + 1}`;
-        
-        // Build beautiful SVG Laptop icon
-        let svgCode = `
-          <svg class="w-8 h-8 text-slate-500 group-hover/laptop:text-rose-400 transition-colors duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="4" width="20" height="13" rx="2" ry="2"></rect>
-            <line x1="1" y1="20" x2="23" y2="20"></line>
-            <line x1="10" y1="17" x2="14" y2="17"></line>
-          </svg>
-        `;
 
-        // Check if this is the last fractional laptop
-        if (i === Math.floor(wholeCount) && fraction > 0) {
-          // Clipped representation using inline styling for clipPath
-          const percentage = fraction * 100;
-          laptopContainer.title = `MacBook #${i + 1} (${percentage.toFixed(0)}% Allocated)`;
-          laptopContainer.className += " overflow-hidden";
-          
-          // Double layered laptops to show the cut line
-          laptopContainer.innerHTML = `
-            <!-- Sliced Base / Ghost -->
-            <div class="absolute inset-0 p-2 flex items-center justify-center opacity-25">
-              <svg class="w-8 h-8 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <rect x="2" y="4" width="20" height="13" rx="2" ry="2"></rect>
-                <line x1="1" y1="20" x2="23" y2="20"></line>
-              </svg>
-            </div>
-            <!-- The actual sliced part -->
-            <div class="absolute inset-0 p-2 flex items-center justify-center text-rose-500" style="clip-path: polygon(0 0, ${percentage}% 0, ${percentage}% 100%, 0% 100%);">
-              <svg class="w-8 h-8 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <rect x="2" y="4" width="20" height="13" rx="2" ry="2" fill="currentColor" fill-opacity="0.15"></rect>
-                <line x1="1" y1="20" x2="23" y2="20"></line>
-              </svg>
-            </div>
-            <!-- Slices Indicator Line -->
-            <div class="absolute top-0 bottom-0 w-[1.5px] bg-amber-400 z-10 animate-pulse" style="left: calc(${percentage}% + 4px);"></div>
-          `;
-        } else {
-          // Regular fully purchased glowing laptop
-          laptopContainer.innerHTML = `
-            <div class="text-rose-500/80">
-              <svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.1" stroke="currentColor" stroke-width="1.8">
-                <rect x="2" y="4" width="20" height="13" rx="2" ry="2"></rect>
-                <line x1="1" y1="20" x2="23" y2="20"></line>
-              </svg>
-            </div>
-          `;
-        }
+        // Fully purchased glowing laptop
+        laptopContainer.innerHTML = `
+          <div class="text-rose-500/80">
+            <svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.1" stroke="currentColor" stroke-width="1.8">
+              <rect x="2" y="4" width="20" height="13" rx="2" ry="2"></rect>
+              <line x1="1" y1="20" x2="23" y2="20"></line>
+            </svg>
+          </div>
+        `;
 
         macbookGrid.appendChild(laptopContainer);
       }
@@ -801,21 +819,20 @@ TOOL_OVERVIEW_END
       badgeTitleOutput.textContent = state.title || "Unclassified Cost Centre";
       badgeCostOutput.textContent = formatCurrency(state.cost);
       
-      const multiplier = state.cost / state.macbookCost;
-      const wholePart = Math.floor(multiplier);
-      const fractionPart = multiplier - wholePart;
-      
+      // MacBooks are only ever counted as whole units — always round down.
+      const wholeCount = Math.floor(state.cost / state.macbookCost);
+      const leftover = state.cost - (wholeCount * state.macbookCost);
+
       // Update badge multiplier
-      if (multiplier % 1 === 0) {
-        badgeMultiplierDisplay.textContent = multiplier.toLocaleString();
-      } else {
-        badgeMultiplierDisplay.textContent = multiplier.toFixed(2);
-      }
+      badgeMultiplierDisplay.textContent = wholeCount.toLocaleString();
+
+      // Reflect the current unit price in the badge footer
+      badgeMbuPrice.textContent = formatCurrency(state.macbookCost);
 
       // Update description remarks dynamically based on tier range
       let matchingRemark = quirkyRemarks[0].text;
       for (const remark of quirkyRemarks) {
-        if (multiplier <= remark.max) {
+        if (wholeCount <= remark.max) {
           matchingRemark = remark.text;
           break;
         } else {
@@ -825,12 +842,12 @@ TOOL_OVERVIEW_END
       }
       macbookTierDescription.textContent = matchingRemark;
 
-      // Update Grid counters
-      gridCounter.textContent = `${multiplier.toFixed(2)} MBUs Allocated`;
-      
+      // Update Grid counter
+      gridCounter.textContent = `${wholeCount.toLocaleString()} MacBook${wholeCount === 1 ? '' : 's'}`;
+
       // Update visual grid representation
-      renderMacBookGrid(wholePart, fractionPart);
-      updateFractionalExplanation(parseFloat(fractionPart.toFixed(2)));
+      renderMacBookGrid(wholeCount);
+      updateLeftoverExplanation(leftover);
     }
 
     // Input Actions & Event Bindings
@@ -870,6 +887,33 @@ TOOL_OVERVIEW_END
         updateDisplay();
         updateURLParams();
       }
+    });
+
+    // Inline-editable MacBook unit price
+    inputMbuPrice.addEventListener('input', (e) => {
+      let val = parseInt(e.target.value);
+      if (isNaN(val) || val < 1) val = 1;
+      if (val > 100000) val = 100000;
+      state.macbookCost = val;
+      updateDisplay();
+      updateURLParams();
+    });
+
+    // Normalize the unit price on blur (never allow empty / sub-£1 values)
+    inputMbuPrice.addEventListener('blur', (e) => {
+      let val = parseInt(e.target.value);
+      if (isNaN(val) || val < 1) val = 1;
+      if (val > 100000) val = 100000;
+      e.target.value = val;
+      state.macbookCost = val;
+      updateDisplay();
+      updateURLParams();
+    });
+
+    // Pencil button focuses and selects the price for quick editing
+    mbuEditBtn.addEventListener('click', () => {
+      inputMbuPrice.focus();
+      inputMbuPrice.select();
     });
 
     // Initializer
