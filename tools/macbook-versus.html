@@ -2,7 +2,7 @@
 TOOL_OVERVIEW_START
 {
   "name": "The MacBook Standard - Corporate Expense Edition",
-  "description": "A whimsical web utility to compare corporate purchase budgets with standard-issue MacBook Pros (£1,000 each). It features dual-input synchronization, URL state preservation for sharing, a visual interactive laptop fleet showing sliced fractional computers, and customizable badge designs ready to snip or export.",
+  "description": "A whimsical web utility to compare corporate purchase budgets with standard-issue MacBook (£1,000 each). It features dual-input synchronization, URL state preservation for sharing, a visual interactive laptop fleet showing sliced fractional computers, and customizable badge designs ready to snip or export.",
   "functionality": {
     "currency_to_mbu_calculator": "Converts arbitrary currency figures up to £250,000 into standard-issue MacBook units (1 MBU = £1000) with a synchronized slider and input box.",
     "url_state_syncing": "Serializes and deserializes the state of the custom title, budget cost, and design theme directly inside the browser query parameters to make configurations shareable.",
@@ -329,7 +329,7 @@ TOOL_OVERVIEW_END
                 </div>
                 <div>
                   <h4 class="font-extrabold text-lg leading-tight text-white flex items-center gap-1.5">
-                    MacBook Pros <span id="macbook-fractional-emoji">💻✂️</span>
+                    MacBooks <span id="macbook-fractional-emoji">💻✂️</span>
                   </h4>
                   <p id="macbook-tier-description" class="text-xs text-white/70 max-w-sm mt-0.5 leading-relaxed font-medium">
                     That's enough to build a small glowing barricade or open a boutique web agency!
@@ -625,7 +625,7 @@ TOOL_OVERVIEW_END
     // Copy formatted text description
     function copyBadgeText() {
       const macbooksCount = (state.cost / state.macbookCost).toFixed(2);
-      const textToCopy = `💻 THE MACBOOK INDEX (CORPORATE PROCUREMENT) 💻\n\nInstead of spending corporate budgets on: "${state.title}" for ${formatCurrency(state.cost)},\nwe could have procured exactly: ${macbooksCount} Apple MacBook Pros for the team!\n\nLink to Config: ${window.location.href}\n\nAudited by: The MacBook Standard Exchange Index 🍏`;
+      const textToCopy = `💻 THE MACBOOK INDEX (CORPORATE PROCUREMENT) 💻\n\nInstead of spending corporate budgets on: "${state.title}" for ${formatCurrency(state.cost)},\nwe could have procured exactly: ${macbooksCount} Apple MacBooks for the team!\n\nLink to Config: ${window.location.href}\n\nAudited by: The MacBook Standard Exchange Index 🍏`;
       
       // Fallback copy strategy
       const tempTextArea = document.createElement("textarea");
