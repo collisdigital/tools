@@ -8,10 +8,11 @@ TOOL_OVERVIEW_START
     "tax_taper_logic": "Accurately handles the Personal Allowance taper (60% tax trap) using Adjusted Net Income after pension contributions.",
     "multi_view_breakdown": "Toggle results between annual, monthly, weekly, and hourly pay based on a standard 37.5-hour week.",
     "smart_inputs": "Includes real-time comma formatting for currency and bi-directional calculation between salary and percentage increases.",
-    "local_persistence": "Automatically saves and restores user inputs using browser localStorage."
+    "local_persistence": "Automatically saves and restores user inputs using browser localStorage.",
+    "shareable_links": "Syncs all inputs to the URL query string and provides a one-click copy button so results can be shared and restored via link."
   },
   "dependencies": ["Tailwind CSS (CDN)", "Google Fonts (Inter)"],
-  "last_updated": "2026-02-24"
+  "last_updated": "2026-09-02"
 }
 TOOL_OVERVIEW_END
 -->
@@ -33,9 +34,14 @@ TOOL_OVERVIEW_END
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 p-4 md:p-8">
     <div class="max-w-4xl mx-auto">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-slate-900">UK Take-Home Pay Comparison</h1>
-            <p class="text-slate-600 mt-2">Compare current and future earnings with accurate tax data.</p>
+        <header class="mb-8 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900">UK Take-Home Pay Comparison</h1>
+                <p class="text-slate-600 mt-2">Compare current and future earnings with accurate tax data.</p>
+            </div>
+            <button onclick="copyShareLink()" id="share-btn" class="shrink-0 inline-flex items-center gap-2 py-2.5 px-4 bg-white border border-slate-300 rounded-lg font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors">
+                🔗 Copy Share Link
+            </button>
         </header>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -335,36 +341,75 @@ TOOL_OVERVIEW_END
                 : 'bg-emerald-500 py-2 px-4 rounded-full font-bold';
             
             saveToLocalStorage();
+            updateURLParams();
         }
 
         // --- Persistence ---
-        function saveToLocalStorage() {
-            const data = {
+        function getStateData() {
+            return {
                 salA: elements.salA.value,
                 salB: elements.salB.value,
                 yearA: elements.yearA.value,
                 yearB: elements.yearB.value,
                 pension: elements.pension.value,
-                percentIncrease: elements.percentIncrease.value,
                 currentView: currentView
             };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        const NUMERIC_FIELDS = ['salA', 'salB', 'pension'];
+
+        function applyStateData(data) {
+            Object.keys(data).forEach(key => {
+                if (key === 'currentView') {
+                    changeView(data[key]);
+                } else if (elements[key]) {
+                    elements[key].value = NUMERIC_FIELDS.includes(key) ? formatWithCommas(data[key]) : data[key];
+                }
+            });
+            updatePercentageField();
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(getStateData()));
         }
 
         function loadFromLocalStorage() {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return;
             try {
-                const data = JSON.parse(raw);
-                Object.keys(data).forEach(key => {
-                    if (key === 'currentView') {
-                        changeView(data[key]);
-                    } else if (elements[key]) {
-                        elements[key].value = data[key];
-                    }
-                });
+                applyStateData(JSON.parse(raw));
             } catch (e) { console.error("Load failed", e); }
         }
+
+        // --- URL Sharing ---
+        function updateURLParams() {
+            const data = getStateData();
+            NUMERIC_FIELDS.forEach(key => { data[key] = cleanString(data[key]); });
+            const params = new URLSearchParams(data);
+            history.replaceState(null, '', '?' + params.toString());
+        }
+
+        function loadFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            if (![...params.keys()].length) return false;
+            const data = {};
+            params.forEach((value, key) => { data[key] = value; });
+            applyStateData(data);
+            return true;
+        }
+
+        window.copyShareLink = async () => {
+            const btn = document.getElementById('share-btn');
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                const original = btn.textContent;
+                btn.textContent = '✅ Link Copied!';
+                setTimeout(() => { btn.textContent = original; }, 2000);
+            } catch (e) {
+                console.error('Copy failed', e);
+                window.prompt('Copy this link:', window.location.href);
+            }
+        };
 
         // --- Event Listeners ---
 
@@ -413,7 +458,9 @@ TOOL_OVERVIEW_END
         };
 
         // Initialize
-        loadFromLocalStorage();
+        if (!loadFromURL()) {
+            loadFromLocalStorage();
+        }
         calculate();
     </script>
 </body>
