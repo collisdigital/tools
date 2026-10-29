@@ -4,7 +4,7 @@ TOOL_OVERVIEW_START
   "name": "The MacBook Standard - Corporate Expense Edition",
   "description": "A whimsical web utility to compare corporate purchase budgets with standard-issue MacBook (£1,000 each). It features dual-input synchronization, URL state preservation for sharing, a visual interactive laptop fleet showing sliced fractional computers, and customizable badge designs ready to snip or export.",
   "functionality": {
-    "currency_to_mbu_calculator": "Converts arbitrary currency figures up to £250,000 into standard-issue MacBook units (1 MBU = £1000) with a synchronized slider and input box.",
+    "currency_to_mbu_calculator": "Converts arbitrary currency figures up to £10,000,000 into standard-issue MacBook units (1 MBU = £1000) with a synchronized slider and input box.",
     "url_state_syncing": "Serializes and deserializes the state of the custom title, budget cost, and design theme directly inside the browser query parameters to make configurations shareable.",
     "fractional_visual_fleet": "Renders a physical grid of up to 100 laptops, using CSS clip-paths to cleanly slice or bisect the final laptop for fractional totals.",
     "custom_badge_themes": "Generates a gorgeous high-fidelity procurement badge across four customizable design modes (Midnight, Space Gray, Rose Gold, and Aurora).",
@@ -15,7 +15,7 @@ TOOL_OVERVIEW_START
     "html2canvas (v1.4.1 CDN)",
     "Google Fonts (Plus Jakarta Sans & Playfair Display)"
   ],
-  "last_updated": "2026-06-19"
+  "last_updated": "2026-10-29"
 }
 TOOL_OVERVIEW_END
 -->
@@ -176,7 +176,7 @@ TOOL_OVERVIEW_END
         <div class="space-y-2 mb-6">
           <div class="flex justify-between items-center">
             <label for="numeric-price" class="block text-sm font-semibold text-slate-300">Total Approved Budget (£)</label>
-            <span class="text-xs text-slate-400">Max: £250,000</span>
+            <span class="text-xs text-slate-400">Max: £10,000,000</span>
           </div>
           <div class="relative">
             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-lg">£</span>
@@ -185,7 +185,7 @@ TOOL_OVERVIEW_END
               id="numeric-price" 
               value="45000" 
               min="0" 
-              max="250000"
+              max="10000000"
               class="w-full pl-8 pr-4 py-3 bg-slate-950/80 border border-slate-800 hover:border-slate-700 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 rounded-2xl outline-none text-slate-100 font-extrabold text-lg transition-all shadow-inner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
           </div>
@@ -195,14 +195,14 @@ TOOL_OVERVIEW_END
         <div class="space-y-3 mb-6">
           <div class="flex justify-between items-center text-xs text-slate-400 font-mono">
             <span>£0</span>
-            <span>£125,000</span>
-            <span>£250,000</span>
+            <span>£5,000,000</span>
+            <span>£10,000,000</span>
           </div>
           <input 
             type="range" 
             id="slider-price" 
             min="0" 
-            max="250000" 
+            max="10000000"
             step="500" 
             value="45000"
             class="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer border border-slate-800 focus:outline-none accent-rose-500"
@@ -304,7 +304,7 @@ TOOL_OVERVIEW_END
             
             <!-- Badge Header -->
             <div class="border-b border-white/10 pb-4 text-center">
-              <span class="text-[10px] font-bold tracking-[0.2em] text-white/50 uppercase block mb-0.5">Corporate Standard</span>
+              <span class="text-[10px] font-bold tracking-[0.2em] text-white/50 uppercase block mb-0.5">Budget Comparison</span>
               <h3 id="badge-index-heading" class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white to-white/75 bg-clip-text text-transparent">
                 MACBOOK EXCHANGE INDEX
               </h3>
@@ -313,21 +313,18 @@ TOOL_OVERVIEW_END
             <!-- Main Calculation Displays -->
             <div class="my-6 space-y-4 text-center">
               <div>
-                <p class="text-xs text-white/60 mb-1 flex items-center justify-center">
-                  <span class="mr-1.5">💼</span> Instead of approving the cost of:
+                <p class="text-xs text-white/60 mb-1">
+                  <span class="mr-1.5">💼</span> Instead of spending <span id="badge-cost-output" class="text-emerald-400 font-bold">£45,000</span> on:
                 </p>
                 <div id="badge-title-output" class="text-xl sm:text-2xl font-black text-white leading-tight">
                   A Consultant's 10-Slide Strategy Deck
-                </div>
-                <div class="text-sm font-semibold text-white/80 mt-1">
-                  From budget line item: <span id="badge-cost-output" class="text-emerald-400 font-bold">£45,000</span>
                 </div>
               </div>
 
               <!-- Equal Sign / Indicator -->
               <div class="flex items-center">
                 <div class="h-[1px] bg-white/10 flex-grow"></div>
-                <span class="text-[10px] font-black tracking-widest text-white/30 uppercase mx-3">Procurement Alternative</span>
+                <span class="text-[10px] font-black tracking-widest text-white/30 uppercase mx-3">You could buy</span>
                 <div class="h-[1px] bg-white/10 flex-grow"></div>
               </div>
 
@@ -548,7 +545,7 @@ TOOL_OVERVIEW_END
       }
       if (params.has('cost')) {
         const costParam = parseInt(params.get('cost'));
-        if (!isNaN(costParam) && costParam >= 0 && costParam <= 250000) {
+        if (!isNaN(costParam) && costParam >= 0 && costParam <= 10000000) {
           state.cost = costParam;
           inputCostNumeric.value = costParam;
           inputCostSlider.value = costParam;
@@ -647,7 +644,7 @@ TOOL_OVERVIEW_END
     // Copy formatted text description
     function copyBadgeText() {
       const macbooksCount = Math.floor(state.cost / state.macbookCost);
-      const textToCopy = `💻 THE MACBOOK INDEX (CORPORATE PROCUREMENT) 💻\n\nInstead of spending corporate budgets on: "${state.title}" for ${formatCurrency(state.cost)},\nwe could have procured ${macbooksCount.toLocaleString()} Apple MacBook${macbooksCount === 1 ? '' : 's'} for the team!\n\nLink to Config: ${window.location.href}\n\nAudited by: The MacBook Standard Exchange Index 🍏`;
+      const textToCopy = `💻 THE MACBOOK INDEX 💻\n\nInstead of spending ${formatCurrency(state.cost)} on: "${state.title}",\nyou could buy ${macbooksCount.toLocaleString()} Apple MacBook${macbooksCount === 1 ? '' : 's'}!\n\nLink to Config: ${window.location.href}\n\nAudited by: The MacBook Standard Exchange Index 🍏`;
       
       // Fallback copy strategy
       const tempTextArea = document.createElement("textarea");
@@ -874,7 +871,8 @@ TOOL_OVERVIEW_END
     inputCostNumeric.addEventListener('input', (e) => {
       let val = parseInt(e.target.value);
       if (isNaN(val) || val < 0) val = 0;
-      if (val > 250000) val = 250000;
+      if (val > 10000000) val = 10000000;
+      e.target.value = val;
       
       state.cost = val;
       inputCostSlider.value = val;
